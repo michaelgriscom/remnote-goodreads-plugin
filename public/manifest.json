@@ -1,22 +1,21 @@
 {
+  "author": "michaelgriscom",
+  "name": "Goodreads",
+  "description": "Sync a Goodreads shelf to RemNote",
+  "enableOnMobile": true,
+  "id": "michaelgriscom-goodreads",
+  "repoUrl": "https://github.com/michaelgriscom/remnote-goodreads-plugin",
   "manifestVersion": 1,
-  "id": "plugin_template",
-  "name": "Plugin Template",
-  "author": "remnote",
-  "repoUrl": "",
   "version": {
     "major": 0,
     "minor": 0,
     "patch": 1
   },
-  "theme": [],
-  "enableOnMobile": false,
-  "description": "",
   "requestNative": false,
   "requiredScopes": [
     {
       "type": "All",
-      "level": "Read"
+      "level": "ReadCreateModify"
     }
   ]
 }
