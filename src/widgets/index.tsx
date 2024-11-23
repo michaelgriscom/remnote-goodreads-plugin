@@ -10,9 +10,8 @@ function doError(msg: string) {
   console.error(`[Goodreads] ${msg}`);
 }
 
-function cleanupBookTitle(title: string|null): string|null {
-  if(!title) return null;
-
+// TODO: add a setting for this (default to true)
+function cleanupBookTitle(title: string): string {
   // Remove text after colon (typically subtitle)
   let cleanTitle = title.split(':')[0];
   
@@ -28,21 +27,20 @@ function cleanupBookTitle(title: string|null): string|null {
   return cleanTitle;
 }
 
-// TODO: boolean setting to allow periodic fetch?
+// TODO: boolean setting to allow periodic fetch (default to true)
 async function onActivate(plugin: ReactRNPlugin) {
   await plugin.settings.registerStringSetting({
     id: 'feedUrl',
     title: 'Goodreads RSS feed',
   });
 
-  // TODO: use this
   await plugin.settings.registerStringSetting({
     id: 'prefix',
     title: 'Rem Prefix',
     description: '(optional) Prefix for created rems'
   });
 
-  // TODO: use this
+  // TODO: use this to tag new rems
   await plugin.settings.registerStringSetting({
     id: 'tags',
     title: 'Tags',
@@ -81,10 +79,16 @@ async function onActivate(plugin: ReactRNPlugin) {
           const item = items[i];
           
           // Extract book information
-          const title = cleanupBookTitle(item.getElementsByTagName('title')[0].textContent);
+          let title = item.getElementsByTagName('title')[0].textContent;
           if(!title) {
             doError(`Failed to parse title for item: ${item}`);
             continue;
+          }
+
+          title = cleanupBookTitle(title);
+          const prefix: string = await plugin.settings.getSetting('prefix');
+          if(prefix) {
+            title = prefix + title;
           }
           const link = item.getElementsByTagName('link')[0].textContent;
           const description = item.getElementsByTagName('description')[0].textContent ?? '';
@@ -93,35 +97,34 @@ async function onActivate(plugin: ReactRNPlugin) {
           const parser = new DOMParser();
           const descDoc = parser.parseFromString(description, 'text/html');
           
-          // TODO: use other fields?
           // Extract author and image URL from description
-          const authorMatch = description.match(/by (.*?)<br/);
-          const author = authorMatch ? authorMatch[1].trim() : 'Unknown Author';
-          const imgElement = descDoc.querySelector('img');
-          const coverUrl = imgElement ? imgElement.src : '';
+          // const authorMatch = description.match(/by (.*?)<br/);
+          // const author = authorMatch ? authorMatch[1].trim() : 'Unknown Author';
+          // const imgElement = descDoc.querySelector('img');
+          // const coverUrl = imgElement ? imgElement.src : '';
           
           // Check if a Rem with this title already exists
           const existingRem = await plugin.rem.findByName([title], null);
           if(existingRem) {
-            doLog(`Rem for ${title} exists (${existingRem._id}), skipping`);
+            doLog(`Rem for "${title}" exists (${existingRem._id}), skipping`);
             continue;
           } else {
-            doLog(`No rem for ${title} found, creating`);
+            doLog(`No rem for "${title}" found, creating`);
           }
 
           // Create new Rem for the book
           const bookRem = await plugin.rem.createRem();
           if(bookRem) {
-            doLog(`Rem created for ${title} (${bookRem._id})`);
+            doLog(`Rem created for "${title}" (${bookRem._id})`);
           }
           if(!bookRem) {
-            doError(`Failed to create Rem ${title}`);
+            doError(`Failed to create Rem "${title}"`);
             continue;
           }
           await bookRem.setText([title]);
           await bookRem.setIsDocument(true);
 
-          doLog(`Rem populated for ${title} (${bookRem._id})`);
+          doLog(`Rem populated for "${title}" (${bookRem._id})`);
           remsCreated++;
         }
         
