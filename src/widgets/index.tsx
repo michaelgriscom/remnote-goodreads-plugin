@@ -70,6 +70,7 @@ async function createRemForRssItem(item: Element, plugin: ReactRNPlugin): Promis
 async function fetchGoodreads(plugin: ReactRNPlugin) {
   let remsCreated = 0;
   try {
+    // TODO: validate that the feedURL is a goodreads URL
     const feedUrl: string = await plugin.settings.getSetting('feedUrl');
 
     // Fetch and parse the RSS feed
