@@ -47,7 +47,7 @@ const config = {
       {
         test: /\.css$/i,
         use: [
-          isDevelopment ? "style-loader" : MiniCssExtractPlugin.loader,
+          isDevelopment ? 'style-loader' : MiniCssExtractPlugin.loader,
           { loader: 'css-loader', options: { url: false } },
           'postcss-loader',
         ],
@@ -55,9 +55,11 @@ const config = {
     ],
   },
   plugins: [
-    isDevelopment ? undefined : new MiniCssExtractPlugin({
-      filename: '[name].css',
-    }),
+    isDevelopment
+      ? undefined
+      : new MiniCssExtractPlugin({
+          filename: '[name].css',
+        }),
     new HtmlWebpackPlugin({
       templateContent: `
       <body></body>
@@ -88,9 +90,9 @@ const config = {
     }),
     new CopyPlugin({
       patterns: [
-        {from: 'public', to: ''},
-        {from: 'README.md', to: ''}
-      ]
+        { from: 'public', to: '' },
+        { from: 'README.md', to: '' },
+      ],
     }),
     fastRefresh,
   ].filter(Boolean),
@@ -111,7 +113,18 @@ if (isProd) {
     watchFiles: ['src/*'],
     headers: {
       'Access-Control-Allow-Origin': '*',
-      "Access-Control-Allow-Headers": "baggage, sentry-trace"
+      'Access-Control-Allow-Headers': 'baggage, sentry-trace',
+    },
+    proxy: {
+      '/goodreads': {
+        target: 'https://www.goodreads.com',
+        changeOrigin: true,
+        secure: false,
+        pathRewrite: { '^/goodreads': '' },
+        onProxyReq: (proxyReq) => {
+          proxyReq.setHeader('origin', 'https://www.goodreads.com');
+        },
+      },
     },
   };
 }

@@ -72,10 +72,11 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
   try {
     // TODO: validate that the feedURL is a goodreads URL
     const feedUrl: string = await plugin.settings.getSetting('feedUrl');
+    const proxyUrl = `/goodreads${new URL(feedUrl).pathname}${new URL(feedUrl).search}`;
 
     // Fetch and parse the RSS feed
-    doLog(`Fetching from ${feedUrl}`);
-    const response = await fetch(feedUrl,
+    doLog(`Fetching from ${proxyUrl}`);
+    const response = await fetch(proxyUrl,
       {
         mode: 'cors',
         headers: {
