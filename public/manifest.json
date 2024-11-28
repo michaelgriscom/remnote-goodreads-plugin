@@ -1,6 +1,6 @@
 {
   "author": "michaelgriscom",
-  "name": "Goodreads",
+  "name": "Goodreads Sync",
   "description": "Sync a Goodreads shelf to RemNote",
   "enableOnMobile": true,
   "id": "michaelgriscom-goodreads",
