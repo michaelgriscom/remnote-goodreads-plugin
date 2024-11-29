@@ -5,6 +5,7 @@
   "enableOnMobile": true,
   "id": "michaelgriscom-goodreads",
   "repoUrl": "https://github.com/michaelgriscom/remnote-goodreads-plugin",
+  "changelogUrl": "https://github.com/michaelgriscom/remnote-goodreads-plugin/blob/main/CHANGELOG.md",
   "manifestVersion": 1,
   "version": {
     "major": 0,
