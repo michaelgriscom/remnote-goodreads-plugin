@@ -1,0 +1,13 @@
+{
+  "release-type": "node",
+  "extra-files": [
+    {
+      "type": "json",
+      "path": "public/manifest.json",
+      "jsonpath": "$.version"
+    }
+  ],
+  "packages": {
+    ".": {}
+  }
+}
