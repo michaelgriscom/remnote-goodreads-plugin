@@ -22,7 +22,7 @@ jobs:
           # this is a built-in strategy in release-please, see "Action Inputs"
           # for more options
           release-type: simple
-          versionFile: public/manifest.json
+          version-file: public/manifest.json
       - name: Upload Release Artifact
         if: ${{ steps.release.outputs.release_created }}
         env:
