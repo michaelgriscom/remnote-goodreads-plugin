@@ -6,10 +6,10 @@ export interface GoodreadsBook {
     author: string;
     coverUrl: string;
     dateAddedToShelf?: Date;
-    averageRating: number;
-    userRating: number;
+    averageRating?: number;
+    userRating?: number;
     shelves: string[];
-    datePublished?: Date;
+    yearPublished?: number;
     dateRead?: Date;
 }
 
@@ -17,68 +17,41 @@ export interface ParseOptions {
     cleanupTitle: boolean;
 }
 
+function getItemProperty(item: Element, property: string): string {
+    return item.getElementsByTagName(property)[0].textContent ?? '';
+}
+
 function parseBook(item: Element, parseOptions: ParseOptions): GoodreadsBook|undefined {
-       // Extract book information
-       let title = item.getElementsByTagName('title')[0].textContent;
-       if (!title) {
+       // A title is necessary
+       let rawTitle = getItemProperty(item, 'title');
+       if (!rawTitle) {
            doError(`Failed to parse title for item: ${item}`);
            return;
        }
-   
-       if(parseOptions.cleanupTitle) {
-           title = cleanupBookTitle(title);
-       }
+
+       const title = parseOptions.cleanupTitle ? cleanupBookTitle(rawTitle) : rawTitle;
        
-       const link = item.getElementsByTagName('link')[0].textContent;
-       const description = item.getElementsByTagName('description')[0].textContent ?? '';
+       const author = getItemProperty(item, 'author_name');
    
-       // Parse description to extract additional details
-       const parser = new DOMParser();
-       const descDoc = parser.parseFromString(description, 'text/html');
+       const coverUrl = getItemProperty(item, 'book_image_url');
    
-       // Author extraction
-       const authorMatch = description.match(/author: (.*?)<br/);
-       const author = authorMatch ? authorMatch[1].trim() : '';
+       const shelves = getItemProperty(item, 'user_shelves').split(',').map(shelf => shelf.trim()) ;
    
-       // Cover URL extraction
-       const imgElement = descDoc.querySelector('img');
-       const coverUrl = imgElement ? imgElement.src : '';
+       const averageRatingRaw = getItemProperty(item, 'average_rating');
+       const averageRating = averageRatingRaw ? parseFloat(averageRatingRaw) : undefined;
    
-       // Shelves extraction
-       const shelvesMatch = description.match(/shelves: (.*?)</);
-       const shelves = shelvesMatch 
-           ? shelvesMatch[1].split(',').map(shelf => shelf.trim()) 
-           : [];
+       const userRatingRaw = getItemProperty(item, 'user_rating');
+       const userRating = userRatingRaw ? parseInt(userRatingRaw, 10) : undefined; 
+
+       const dateReadRaw = getItemProperty(item, 'user_read_at');
+       const dateRead = dateReadRaw ? new Date(dateReadRaw) : undefined;
    
-       // Average Rating extraction
-       const averageRatingMatch = description.match(/average rating: (\d+\.\d+)/);
-       const averageRating = averageRatingMatch 
-           ? parseFloat(averageRatingMatch[1]) 
-           : 0;
+       const dateAddedRaw = getItemProperty(item, 'user_date_added');
+       const dateAddedToShelf = dateAddedRaw ? new Date(dateAddedRaw) : undefined;
    
-       // User Rating extraction
-       const userRatingMatch = description.match(/rating: (\d+)/);
-       const userRating = userRatingMatch 
-           ? parseInt(userRatingMatch[1], 10) 
-           : 0;
+       const yearPublishedRaw = getItemProperty(item, 'book_published');
+       const yearPublished = yearPublishedRaw ? parseInt(yearPublishedRaw, 10) : undefined;
    
-       // Date Added to Shelf extraction
-       const dateAddedMatch = description.match(/date added: (\w+ \d{1,2}, \d{4})/);
-       const dateAddedToShelf = dateAddedMatch 
-           ? new Date(dateAddedMatch[1]) 
-           : undefined;
-   
-       // Date Read extraction
-       const dateReadMatch = description.match(/read at: (\w+ \d{1,2}, \d{4})/);
-       const dateRead = dateReadMatch 
-           ? new Date(dateReadMatch[1]) 
-           : undefined;
-   
-       // Publication Date extraction
-       const pubDateMatch = description.match(/book published: (\w+ \d{1,2}, \d{4})/);
-       const datePublished = pubDateMatch 
-           ? new Date(pubDateMatch[1]) 
-           : undefined;
    
        return {
            title,
@@ -88,7 +61,7 @@ function parseBook(item: Element, parseOptions: ParseOptions): GoodreadsBook|und
            averageRating,
            userRating,
            shelves,
-           datePublished,
+           yearPublished,
            dateRead
        };
 }
