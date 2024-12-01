@@ -2,24 +2,9 @@ import { declareIndexPlugin, ReactRNPlugin, Rem } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../App.css';
 import { doError, doLog } from '../logging';
-import { cleanupBookTitle } from '../cleanupBookTitle';
+import { GoodreadsBook, parseBooks } from '../parseRss';
 
-async function createRemForRssItem(item: Element, plugin: ReactRNPlugin): Promise<Rem|undefined> {
-    // Extract book information
-    let title = item.getElementsByTagName('title')[0].textContent;
-    if (!title) {
-      doError(`Failed to parse title for item: ${item}`);
-      return;
-    }
-
-    title = cleanupBookTitle(title);
-    const link = item.getElementsByTagName('link')[0].textContent;
-    const description = item.getElementsByTagName('description')[0].textContent ?? '';
-
-    // Parse description to extract additional details
-    const parser = new DOMParser();
-    const descDoc = parser.parseFromString(description, 'text/html');
-
+async function createRemForBook({title}: GoodreadsBook, plugin: ReactRNPlugin): Promise<Rem|undefined> {
     // Check if a Rem with this title already exists
     const existingRem = await plugin.rem.findByName([title], null);
     if (existingRem) {
@@ -66,17 +51,16 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(text, 'text/xml');
 
-    // Get all book items from the feed
-    const items = xmlDoc.getElementsByTagName('item');
-    doLog(`Found ${items.length} book(s) in feed`);
+    const books = parseBooks(xmlDoc, {cleanupTitle: true});
+    doLog(`Found ${books.length} book(s) in feed`);
 
     // Process each book
-    for (const item of items) {
-      const rem = await createRemForRssItem(item, plugin);
+    for (const book of books) {
+      const rem = await createRemForBook(book, plugin);
       if(rem) remsCreated++;
     }
 
-    await plugin.app.toast(`Goodreads sync complete. Found ${remsCreated} new book(s) (${items.length - remsCreated} existing)`);
+    await plugin.app.toast(`Goodreads sync complete. Found ${remsCreated} new book(s) (${books.length - remsCreated} existing)`);
   } catch (error) {
     doError(`Error fetching Goodreads shelf: ${error}`);
     await plugin.app.toast('Error syncing Goodreads, check the console for additional details.');
