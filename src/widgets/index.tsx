@@ -3,6 +3,7 @@ import '../style.css';
 import '../App.css';
 import { doError, doLog } from '../logging';
 import { GoodreadsBook, parseBooks } from '../parseRss';
+import { fetchRss } from '../fetchRss';
 
 async function createRemForBook({title}: GoodreadsBook, plugin: ReactRNPlugin): Promise<Rem|undefined> {
     // Check if a Rem with this title already exists
@@ -35,21 +36,7 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
   try {
     // TODO: validate that the feedURL is a goodreads URL
     const feedUrl: string = await plugin.settings.getSetting('feedUrl');
-    const proxyUrl = `/goodreads${new URL(feedUrl).pathname}${new URL(feedUrl).search}`;
-
-    // Fetch and parse the RSS feed
-    doLog(`Fetching from ${proxyUrl}`);
-    const response = await fetch(proxyUrl,
-      {
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/xml',
-        }
-      }
-    );
-    const text = await response.text();
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(text, 'text/xml');
+    const xmlDoc = await fetchRss(feedUrl);
 
     const books = parseBooks(xmlDoc, {cleanupTitle: true});
     doLog(`Found ${books.length} book(s) in feed`);
