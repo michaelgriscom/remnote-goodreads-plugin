@@ -67,6 +67,7 @@ function parseBook(item: Element, parseOptions: ParseOptions): GoodreadsBook|und
 }
 
 export function parseBooks(rssXml: Document, options: ParseOptions): GoodreadsBook[] {
+    doLog('Parsing books with options', options);
     const books: GoodreadsBook[] = [];
 
    // Get all book items from the feed

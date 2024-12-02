@@ -38,7 +38,8 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
     const feedUrl: string = await plugin.settings.getSetting('feedUrl');
     const xmlDoc = await fetchRss(feedUrl);
 
-    const books = parseBooks(xmlDoc, {cleanupTitle: true});
+    const cleanupTitle: boolean = await plugin.settings.getSetting('cleanupTitles');
+    const books = parseBooks(xmlDoc, {cleanupTitle});
     doLog(`Found ${books.length} book(s) in feed`);
 
     // Process each book
@@ -59,6 +60,13 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'feedUrl',
     title: 'Goodreads RSS feed',
   });
+
+  await plugin.settings.registerBooleanSetting({
+    id: 'cleanupTitles',
+    title: 'Simplify book titles',
+    description: 'Omit information like subtitles, editions, etc. from book titles',
+    defaultValue: true,
+  })
 
   // Register a command to fetch books from Goodreads
   await plugin.app.registerCommand({
