@@ -1,47 +1,11 @@
 import { declareIndexPlugin, ReactRNPlugin, Rem } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../App.css';
+import { doError, doLog } from '../logging';
+import { GoodreadsBook, parseBooks } from '../parseRss';
+import { fetchRss } from '../fetchRss';
 
-function doLog(msg: string) {
-  console.log(`[Goodreads] ${msg}`);
-}
-
-function doError(msg: string) {
-  console.error(`[Goodreads] ${msg}`);
-}
-
-function cleanupBookTitle(title: string): string {
-  // Remove text after colon (typically subtitle)
-  let cleanTitle = title.split(':')[0];
-
-  // Remove series information in parentheses
-  cleanTitle = cleanTitle.replace(/\s*\([^)]*\)\s*$/, '');
-
-  // Remove edition information like "1st Edition", "Revised Edition", etc.
-  cleanTitle = cleanTitle.replace(/\s*(\d+(?:st|nd|rd|th)\s+Edition|Revised Edition|Special Edition)\s*$/i, '');
-
-  // Remove trailing spaces
-  cleanTitle = cleanTitle.trim();
-
-  return cleanTitle;
-}
-
-async function createRemForRssItem(item: Element, plugin: ReactRNPlugin): Promise<Rem|undefined> {
-    // Extract book information
-    let title = item.getElementsByTagName('title')[0].textContent;
-    if (!title) {
-      doError(`Failed to parse title for item: ${item}`);
-      return;
-    }
-
-    title = cleanupBookTitle(title);
-    const link = item.getElementsByTagName('link')[0].textContent;
-    const description = item.getElementsByTagName('description')[0].textContent ?? '';
-
-    // Parse description to extract additional details
-    const parser = new DOMParser();
-    const descDoc = parser.parseFromString(description, 'text/html');
-
+async function createRemForBook({title}: GoodreadsBook, plugin: ReactRNPlugin): Promise<Rem|undefined> {
     // Check if a Rem with this title already exists
     const existingRem = await plugin.rem.findByName([title], null);
     if (existingRem) {
@@ -72,33 +36,18 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
   try {
     // TODO: validate that the feedURL is a goodreads URL
     const feedUrl: string = await plugin.settings.getSetting('feedUrl');
-    const proxyUrl = `/goodreads${new URL(feedUrl).pathname}${new URL(feedUrl).search}`;
+    const xmlDoc = await fetchRss(feedUrl);
 
-    // Fetch and parse the RSS feed
-    doLog(`Fetching from ${proxyUrl}`);
-    const response = await fetch(proxyUrl,
-      {
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/xml',
-        }
-      }
-    );
-    const text = await response.text();
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(text, 'text/xml');
-
-    // Get all book items from the feed
-    const items = xmlDoc.getElementsByTagName('item');
-    doLog(`Found ${items.length} book(s) in feed`);
+    const books = parseBooks(xmlDoc, {cleanupTitle: true});
+    doLog(`Found ${books.length} book(s) in feed`);
 
     // Process each book
-    for (const item of items) {
-      const rem = await createRemForRssItem(item, plugin);
+    for (const book of books) {
+      const rem = await createRemForBook(book, plugin);
       if(rem) remsCreated++;
     }
 
-    await plugin.app.toast(`Goodreads sync complete. Found ${remsCreated} new book(s) (${items.length - remsCreated} existing)`);
+    await plugin.app.toast(`Goodreads sync complete. Found ${remsCreated} new book(s) (${books.length - remsCreated} existing)`);
   } catch (error) {
     doError(`Error fetching Goodreads shelf: ${error}`);
     await plugin.app.toast('Error syncing Goodreads, check the console for additional details.');
