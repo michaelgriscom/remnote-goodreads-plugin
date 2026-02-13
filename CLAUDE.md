@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A RemNote plugin that syncs books from a Goodreads RSS feed into RemNote as Rem documents. Built with TypeScript, React, and the RemNote Plugin SDK (https://plugins.remnote.com/).
+A RemNote plugin that syncs books from a Goodreads RSS feed into RemNote as Rem documents. Built with TypeScript, React, and the RemNote Plugin SDK (https://plugins.remnote.com/). This project follows Conventional Commits standards.
 
 ## Development Commands
 
