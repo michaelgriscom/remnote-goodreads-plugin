@@ -15,7 +15,8 @@
   "requestNative": false,
   "requiredScopes": [
     {
-      "type": "All",
+      "type": "DescendantsOfName",
+      "remName": "Goodreads Import",
       "level": "ReadCreateModify"
     }
   ],
