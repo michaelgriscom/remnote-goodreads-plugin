@@ -1,6 +1,6 @@
-import { declareIndexPlugin, ReactRNPlugin, Rem } from '@remnote/plugin-sdk';
+import { declareIndexPlugin, type ReactRNPlugin, Rem } from '@remnote/plugin-sdk';
 import '../style.css';
-import '../App.css';
+import '../index.css'; // import <widget-name>.css
 import { doError, doLog } from '../logging';
 import { GoodreadsBook, parseBooks } from '../parseRss';
 import { fetchRss } from '../fetchRss';
