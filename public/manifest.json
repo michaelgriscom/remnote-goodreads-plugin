@@ -18,11 +18,6 @@
       "type": "DescendantsOfName",
       "remName": "Goodreads Import",
       "level": "ReadCreateModify"
-    },
-    {
-      "type": "Powerup",
-      "powerupCode": "bookPowerup",
-      "level": "ReadCreateModify"
     }
   ],
   "unlisted": true
