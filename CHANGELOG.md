@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/michaelgriscom/remnote-goodreads-plugin/compare/v0.2.0...v0.3.0) (2026-02-13)
+
+
+### Features
+
+* add setting to enable/disable book title cleanup ([#12](https://github.com/michaelgriscom/remnote-goodreads-plugin/issues/12)) ([1efcad9](https://github.com/michaelgriscom/remnote-goodreads-plugin/commit/1efcad98e5778edf956eef2c489c04355de7430c))
+* Nest rems inside parent and downgrade permissions ([#15](https://github.com/michaelgriscom/remnote-goodreads-plugin/issues/15)) ([dfc1eb7](https://github.com/michaelgriscom/remnote-goodreads-plugin/commit/dfc1eb700e63eaad639700c2fd2f7b10cd547b19))
+
 ## [0.2.0](https://github.com/michaelgriscom/remnote-goodreads-plugin/compare/v0.1.0...v0.2.0) (2024-11-28)
 
 ### Features
