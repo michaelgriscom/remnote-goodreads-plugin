@@ -42,10 +42,10 @@ Before creating a Rem, the plugin checks if one with the same title already exis
 
 ### Tags and Author Linking
 
-The plugin creates "Book" and "Author" tag Rems under "Goodreads Import". The "Book" tag has an "Author(s)" child slot (created via `setIsSlot(true)`). When a book is imported:
-- The book Rem is tagged with "Book"
+The plugin creates "Book" and "Author" tag Rems under "Goodreads Import". A custom powerup (`bookPowerup`) registers an "Author(s)" multi-select property (sourced from Rems tagged "Author") on the Book tag. When a book is imported:
+- The book Rem is tagged with "Book" and given the `bookPowerup` powerup
 - An author Rem is created (if not already existing) and tagged with "Author"
-- A property child is added to the book whose text references the "Author(s)" slot and whose back text references the author Rem
+- The book's "Author(s)" property is set to a Rem reference pointing to the author
 
 Author Rems are deduplicated by name, so multiple books by the same author share a single author Rem.
 
@@ -59,9 +59,9 @@ This plugin uses `@remnote/plugin-sdk` to interact with RemNote:
 - `plugin.rem.createRem()` - Creates new Rem documents
 - `plugin.rem.findByName()` - Searches for existing Rems
 - `rem.addTag()` - Tags a Rem with another Rem
-- `rem.setIsSlot()` - Marks a child Rem as a property slot on a tag
-- `rem.setBackText()` - Sets the back text (property value) of a Rem
+- `rem.addPowerup()` / `rem.setPowerupProperty()` - Adds powerup slots and sets their values
 - `plugin.richText.rem().value()` - Builds rich text containing Rem references
+- `plugin.app.registerPowerup()` - Registers a custom powerup with typed property slots
 - `plugin.settings.registerStringSetting()` / `registerBooleanSetting()` - Adds user-configurable settings
 - `plugin.app.registerCommand()` - Registers commands in RemNote's command palette
 - `plugin.app.toast()` - Shows user notifications
