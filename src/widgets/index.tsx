@@ -5,9 +5,28 @@ import { doError, doLog } from '../logging';
 import { GoodreadsBook, parseBooks } from '../parseRss';
 import { fetchRss } from '../fetchRss';
 
-async function createRemForBook({title}: GoodreadsBook, plugin: ReactRNPlugin): Promise<Rem|undefined> {
-    // Check if a Rem with this title already exists
-    const existingRem = await plugin.rem.findByName([title], null);
+const PARENT_REM_NAME = 'Goodreads Import';
+
+async function getOrCreateParentRem(plugin: ReactRNPlugin): Promise<Rem> {
+    const existingRem = await plugin.rem.findByName([PARENT_REM_NAME], null);
+    if (existingRem) {
+      doLog(`Parent Rem "${PARENT_REM_NAME}" found (${existingRem._id})`);
+      return existingRem;
+    }
+
+    const parentRem = await plugin.rem.createRem();
+    if (!parentRem) {
+      throw new Error(`Failed to create parent Rem "${PARENT_REM_NAME}"`);
+    }
+    await parentRem.setText([PARENT_REM_NAME]);
+    await parentRem.setIsDocument(true);
+    doLog(`Parent Rem "${PARENT_REM_NAME}" created (${parentRem._id})`);
+    return parentRem;
+}
+
+async function createRemForBook({title}: GoodreadsBook, plugin: ReactRNPlugin, parentId: string): Promise<Rem|undefined> {
+    // Check if a Rem with this title already exists under the parent
+    const existingRem = await plugin.rem.findByName([title], parentId);
     if (existingRem) {
       doLog(`Rem for "${title}" exists (${existingRem._id}), skipping`);
       return;
@@ -26,6 +45,7 @@ async function createRemForBook({title}: GoodreadsBook, plugin: ReactRNPlugin): 
     }
     await bookRem.setText([title]);
     await bookRem.setIsDocument(true);
+    await bookRem.setParent(parentId);
 
     doLog(`Rem populated for "${title}" (${bookRem._id})`);
     return bookRem;
@@ -42,9 +62,11 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
     const books = parseBooks(xmlDoc, {cleanupTitle});
     doLog(`Found ${books.length} book(s) in feed`);
 
+    const parentRem = await getOrCreateParentRem(plugin);
+
     // Process each book
     for (const book of books) {
-      const rem = await createRemForBook(book, plugin);
+      const rem = await createRemForBook(book, plugin, parentRem._id);
       if(rem) remsCreated++;
     }
 
