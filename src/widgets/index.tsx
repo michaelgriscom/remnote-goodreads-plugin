@@ -151,11 +151,13 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
     await bookTag.addPowerup(BOOK_POWERUP_CODE);
 
     // Configure the Author(s) slot to use the Author tag as the select source
-    const authorsSlotRem = await bookTag.getPowerupPropertyAsRem(BOOK_POWERUP_CODE, AUTHORS_SLOT_CODE);
+    const authorsSlotRem = await plugin.powerup.getPowerupSlotByCode(BOOK_POWERUP_CODE, AUTHORS_SLOT_CODE);
     if (authorsSlotRem) {
       const authorTagRef = await plugin.richText.rem(authorTag).value();
       await authorsSlotRem.setPowerupProperty(BuiltInPowerupCodes.Slot, 'SelectTag', authorTagRef);
       doLog('Author(s) slot configured with Author tag as select source');
+    } else {
+      doError('Could not find Author(s) slot Rem to configure select source');
     }
 
     // Process each book
