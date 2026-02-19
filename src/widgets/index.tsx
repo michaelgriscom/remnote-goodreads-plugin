@@ -2,9 +2,6 @@ import {
   declareIndexPlugin,
   type ReactRNPlugin,
   PluginRem,
-  PropertyType,
-  SelectSourceType,
-  BuiltInPowerupCodes,
 } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../index.css'; // import <widget-name>.css
@@ -15,8 +12,7 @@ import { fetchRss } from '../fetchRss';
 const PARENT_REM_NAME = 'Goodreads Import';
 const BOOK_TAG_NAME = 'Book';
 const AUTHOR_TAG_NAME = 'Author';
-const BOOK_POWERUP_CODE = 'bookPowerup';
-const AUTHORS_SLOT_CODE = 'authors';
+const AUTHORS_PROPERTY_NAME = 'Author(s)';
 
 async function getOrCreateParentRem(plugin: ReactRNPlugin): Promise<PluginRem> {
     const existingRem = await plugin.rem.findByName([PARENT_REM_NAME], null);
@@ -56,6 +52,27 @@ async function getOrCreateTagRem(
     return tagRem;
 }
 
+async function getOrCreateAuthorPropertyRem(
+  plugin: ReactRNPlugin,
+  bookTag: PluginRem
+): Promise<PluginRem> {
+    const existingRem = await plugin.rem.findByName([AUTHORS_PROPERTY_NAME], bookTag._id);
+    if (existingRem) {
+      doLog(`Author(s) property found (${existingRem._id})`);
+      return existingRem;
+    }
+
+    const propertyRem = await plugin.rem.createRem();
+    if (!propertyRem) {
+      throw new Error(`Failed to create Author(s) property Rem`);
+    }
+    await propertyRem.setText([AUTHORS_PROPERTY_NAME]);
+    await propertyRem.setParent(bookTag._id);
+    await propertyRem.setIsProperty(true);
+    doLog(`Author(s) property created (${propertyRem._id})`);
+    return propertyRem;
+}
+
 async function getOrCreateAuthorRem(
   plugin: ReactRNPlugin,
   authorName: string,
@@ -85,12 +102,12 @@ interface CreateBookOptions {
   parentId: string;
   bookTag: PluginRem;
   authorTag: PluginRem;
-  authorsSlotId: string;
+  authorsPropertyId: string;
 }
 
 async function createRemForBook(
   book: GoodreadsBook,
-  { plugin, parentId, bookTag, authorTag, authorsSlotId }: CreateBookOptions
+  { plugin, parentId, bookTag, authorTag, authorsPropertyId }: CreateBookOptions
 ): Promise<PluginRem|undefined> {
     const { title, author } = book;
 
@@ -114,15 +131,15 @@ async function createRemForBook(
     await bookRem.setIsDocument(true);
     await bookRem.setParent(parentId);
 
-    // Tag the book with the "Book" tag (inherits Author(s) property via the powerup on the tag)
+    // Tag the book with the "Book" tag
     await bookRem.addTag(bookTag);
     doLog(`Rem tagged as Book for "${title}" (${bookRem._id})`);
 
-    // Create/find author and set the Author(s) property via the tag
+    // Create/find author and set the Author(s) property
     if (author) {
       const authorRem = await getOrCreateAuthorRem(plugin, author, parentId, authorTag);
       const authorRichText = await plugin.richText.rem(authorRem).value();
-      await bookRem.setTagPropertyValue(authorsSlotId, authorRichText);
+      await bookRem.setTagPropertyValue(authorsPropertyId, authorRichText);
       doLog(`Author "${author}" linked to "${title}"`);
     }
 
@@ -147,17 +164,8 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
     const bookTag = await getOrCreateTagRem(plugin, BOOK_TAG_NAME, parentRem._id);
     const authorTag = await getOrCreateTagRem(plugin, AUTHOR_TAG_NAME, parentRem._id);
 
-    // Add the book powerup to the Book tag so tagged Rems inherit the slots
-    await bookTag.addPowerup(BOOK_POWERUP_CODE);
-
-    // Configure the Author(s) slot to use the Author tag as the select source
-    const authorsSlotRem = await plugin.powerup.getPowerupSlotByCode(BOOK_POWERUP_CODE, AUTHORS_SLOT_CODE);
-    if (!authorsSlotRem) {
-      throw new Error('Could not find Author(s) slot Rem to configure select source');
-    }
-    const authorTagRef = await plugin.richText.rem(authorTag).value();
-    await authorsSlotRem.setPowerupProperty(BuiltInPowerupCodes.Slot, 'SelectTag', authorTagRef);
-    doLog('Author(s) slot configured with Author tag as select source');
+    // Create/find the Author(s) property on the Book tag
+    const authorsProperty = await getOrCreateAuthorPropertyRem(plugin, bookTag);
 
     // Process each book
     for (const book of books) {
@@ -166,7 +174,7 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
         parentId: parentRem._id,
         bookTag,
         authorTag,
-        authorsSlotId: authorsSlotRem._id,
+        authorsPropertyId: authorsProperty._id,
       });
       if(rem) remsCreated++;
     }
@@ -190,26 +198,6 @@ async function onActivate(plugin: ReactRNPlugin) {
     description: 'Omit information like subtitles, editions, etc. from book titles',
     defaultValue: true,
   })
-
-  // Register the Book powerup with an Author(s) multi-select slot
-  // sourced from Rems tagged with "Author"
-  await plugin.app.registerPowerup({
-    name: 'Book',
-    code: BOOK_POWERUP_CODE,
-    description: 'Properties for book Rems',
-    options: {
-      slots: [
-        {
-          code: AUTHORS_SLOT_CODE,
-          name: 'Author(s)',
-          onlyProgrammaticModifying: false,
-          hidden: false,
-          propertyType: PropertyType.MULTI_SELECT,
-          selectSourceType: SelectSourceType.Relation,
-        },
-      ],
-    },
-  });
 
   // Register a command to fetch books from Goodreads
   await plugin.app.registerCommand({
