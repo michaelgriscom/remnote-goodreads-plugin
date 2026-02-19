@@ -9,9 +9,9 @@ const AUTHOR_TAG_NAME = 'Author';
 const AUTHORS_PROPERTY_NAME = 'Author(s)';
 
 export const STORAGE_KEYS = {
-  LAST_SYNC_TIME: 'last-sync-time',
-  SYNC_STATUS: 'sync-status',
-  SYNC_RESULT: 'sync-result',
+  LAST_SYNC_TIME: 'goodreads-sync_last-sync-time',
+  SYNC_STATUS: 'goodreads-sync_sync-status',
+  SYNC_RESULT: 'goodreads-sync_sync-result',
 };
 
 export interface SyncResult {
