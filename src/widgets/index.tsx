@@ -10,25 +10,35 @@ import { GoodreadsBook, parseBooks } from '../parseRss';
 import { fetchRss } from '../fetchRss';
 
 const PARENT_REM_NAME = 'Goodreads Import';
+const BOOKS_CATEGORY_NAME = 'Books';
+const AUTHORS_CATEGORY_NAME = 'Authors';
 const BOOK_TAG_NAME = 'Book';
 const AUTHOR_TAG_NAME = 'Author';
 const AUTHORS_PROPERTY_NAME = 'Author(s)';
 
-async function getOrCreateParentRem(plugin: ReactRNPlugin): Promise<PluginRem> {
-    const existingRem = await plugin.rem.findByName([PARENT_REM_NAME], null);
+async function getOrCreateRem(
+  plugin: ReactRNPlugin,
+  name: string,
+  parentId: string | null,
+  isDocument: boolean = true
+): Promise<PluginRem> {
+    const existingRem = await plugin.rem.findByName([name], parentId);
     if (existingRem) {
-      doLog(`Parent Rem "${PARENT_REM_NAME}" found (${existingRem._id})`);
+      doLog(`Rem "${name}" found (${existingRem._id})`);
       return existingRem;
     }
 
-    const parentRem = await plugin.rem.createRem();
-    if (!parentRem) {
-      throw new Error(`Failed to create parent Rem "${PARENT_REM_NAME}"`);
+    const rem = await plugin.rem.createRem();
+    if (!rem) {
+      throw new Error(`Failed to create Rem "${name}"`);
     }
-    await parentRem.setText([PARENT_REM_NAME]);
-    await parentRem.setIsDocument(true);
-    doLog(`Parent Rem "${PARENT_REM_NAME}" created (${parentRem._id})`);
-    return parentRem;
+    await rem.setText([name]);
+    await rem.setIsDocument(isDocument);
+    if (parentId) {
+      await rem.setParent(parentId);
+    }
+    doLog(`Rem "${name}" created (${rem._id})`);
+    return rem;
 }
 
 async function getOrCreateTagRem(
@@ -73,13 +83,20 @@ async function getOrCreateAuthorPropertyRem(
     return propertyRem;
 }
 
+interface SyncContext {
+  plugin: ReactRNPlugin;
+  booksParentId: string;
+  authorsParentId: string;
+  bookTag: PluginRem;
+  authorTag: PluginRem;
+  authorsPropertyId: string;
+}
+
 async function getOrCreateAuthorRem(
-  plugin: ReactRNPlugin,
   authorName: string,
-  parentId: string,
-  authorTag: PluginRem
+  { plugin, authorsParentId, authorTag }: SyncContext
 ): Promise<PluginRem> {
-    const existingRem = await plugin.rem.findByName([authorName], parentId);
+    const existingRem = await plugin.rem.findByName([authorName], authorsParentId);
     if (existingRem) {
       doLog(`Author Rem "${authorName}" found (${existingRem._id})`);
       return existingRem;
@@ -91,28 +108,21 @@ async function getOrCreateAuthorRem(
     }
     await authorRem.setText([authorName]);
     await authorRem.setIsDocument(true);
-    await authorRem.setParent(parentId);
+    await authorRem.setParent(authorsParentId);
     await authorRem.addTag(authorTag);
     doLog(`Author Rem "${authorName}" created and tagged (${authorRem._id})`);
     return authorRem;
 }
 
-interface CreateBookOptions {
-  plugin: ReactRNPlugin;
-  parentId: string;
-  bookTag: PluginRem;
-  authorTag: PluginRem;
-  authorsPropertyId: string;
-}
-
 async function createRemForBook(
   book: GoodreadsBook,
-  { plugin, parentId, bookTag, authorTag, authorsPropertyId }: CreateBookOptions
+  ctx: SyncContext
 ): Promise<PluginRem|undefined> {
     const { title, author } = book;
+    const { plugin, booksParentId, bookTag, authorsPropertyId } = ctx;
 
-    // Check if a Rem with this title already exists under the parent
-    const existingRem = await plugin.rem.findByName([title], parentId);
+    // Check if a Rem with this title already exists under the books category
+    const existingRem = await plugin.rem.findByName([title], booksParentId);
     if (existingRem) {
       doLog(`Rem for "${title}" exists (${existingRem._id}), skipping`);
       return;
@@ -129,7 +139,7 @@ async function createRemForBook(
     doLog(`Rem created for "${title}" (${bookRem._id})`);
     await bookRem.setText([title]);
     await bookRem.setIsDocument(true);
-    await bookRem.setParent(parentId);
+    await bookRem.setParent(booksParentId);
 
     // Tag the book with the "Book" tag
     await bookRem.addTag(bookTag);
@@ -137,7 +147,7 @@ async function createRemForBook(
 
     // Create/find author and set the Author(s) property
     if (author) {
-      const authorRem = await getOrCreateAuthorRem(plugin, author, parentId, authorTag);
+      const authorRem = await getOrCreateAuthorRem(author, ctx);
       const authorRichText = await plugin.richText.rem(authorRem).value();
       await bookRem.setTagPropertyValue(authorsPropertyId, authorRichText);
       doLog(`Author "${author}" linked to "${title}"`);
@@ -158,7 +168,9 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
     const books = parseBooks(xmlDoc, {cleanupTitle});
     doLog(`Found ${books.length} book(s) in feed`);
 
-    const parentRem = await getOrCreateParentRem(plugin);
+    const parentRem = await getOrCreateRem(plugin, PARENT_REM_NAME, null);
+    const booksCategory = await getOrCreateRem(plugin, BOOKS_CATEGORY_NAME, parentRem._id);
+    const authorsCategory = await getOrCreateRem(plugin, AUTHORS_CATEGORY_NAME, parentRem._id);
 
     // Create/find tag Rems
     const bookTag = await getOrCreateTagRem(plugin, BOOK_TAG_NAME, parentRem._id);
@@ -167,15 +179,18 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
     // Create/find the Author(s) property on the Book tag
     const authorsProperty = await getOrCreateAuthorPropertyRem(plugin, bookTag);
 
+    const ctx: SyncContext = {
+      plugin,
+      booksParentId: booksCategory._id,
+      authorsParentId: authorsCategory._id,
+      bookTag,
+      authorTag,
+      authorsPropertyId: authorsProperty._id,
+    };
+
     // Process each book
     for (const book of books) {
-      const rem = await createRemForBook(book, {
-        plugin,
-        parentId: parentRem._id,
-        bookTag,
-        authorTag,
-        authorsPropertyId: authorsProperty._id,
-      });
+      const rem = await createRemForBook(book, ctx);
       if(rem) remsCreated++;
     }
 
