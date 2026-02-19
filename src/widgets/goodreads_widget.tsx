@@ -5,8 +5,9 @@ import {
   useSyncedStorageState,
   useSessionStorageState,
 } from '@remnote/plugin-sdk';
-import { STORAGE_KEYS } from '../sync';
-import { performSync } from '../sync';
+import '../style.css';
+import '../index.css';
+import { STORAGE_KEYS, performSync } from '../sync';
 
 function formatLastSync(isoString: string | null): string {
   if (!isoString) return 'Never';
