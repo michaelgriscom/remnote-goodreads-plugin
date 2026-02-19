@@ -150,7 +150,6 @@ async function createRemForBook(
 async function fetchGoodreads(plugin: ReactRNPlugin) {
   let remsCreated = 0;
   try {
-    // TODO: validate that the feedURL is a goodreads URL
     const feedUrl: string = await plugin.settings.getSetting('feedUrl');
     const xmlDoc = await fetchRss(feedUrl);
 
