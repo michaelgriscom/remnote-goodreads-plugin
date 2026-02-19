@@ -40,15 +40,28 @@ The production plugin must be loaded in RemNote's environment which handles CORS
 
 Before creating a Rem, the plugin checks if one with the same title already exists using `plugin.rem.findByName()`. This prevents duplicate entries on repeated syncs.
 
+### Tags and Author Linking
+
+The plugin creates "Book" and "Author" tag Rems under "Goodreads Import". A custom powerup (`bookPowerup`) registers an "Author(s)" multi-select property (sourced from Rems tagged "Author") on the Book tag. When a book is imported:
+- The book Rem is tagged with "Book" and given the `bookPowerup` powerup
+- An author Rem is created (if not already existing) and tagged with "Author"
+- The book's "Author(s)" property is set to a Rem reference pointing to the author
+
+Author Rems are deduplicated by name, so multiple books by the same author share a single author Rem.
+
 ### Unused Data
 
-The RSS parser extracts comprehensive book metadata (author, cover URL, ratings, read dates, shelves, etc.) but currently only the `title` field is used for Rem creation. This data is available for future enhancements.
+The RSS parser extracts comprehensive book metadata (cover URL, ratings, read dates, shelves, etc.) beyond what is currently used (title, author). This data is available for future enhancements.
 
 ## RemNote Plugin SDK
 
 This plugin uses `@remnote/plugin-sdk` to interact with RemNote:
 - `plugin.rem.createRem()` - Creates new Rem documents
 - `plugin.rem.findByName()` - Searches for existing Rems
+- `rem.addTag()` - Tags a Rem with another Rem
+- `rem.addPowerup()` / `rem.setPowerupProperty()` - Adds powerup slots and sets their values
+- `plugin.richText.rem().value()` - Builds rich text containing Rem references
+- `plugin.app.registerPowerup()` - Registers a custom powerup with typed property slots
 - `plugin.settings.registerStringSetting()` / `registerBooleanSetting()` - Adds user-configurable settings
 - `plugin.app.registerCommand()` - Registers commands in RemNote's command palette
 - `plugin.app.toast()` - Shows user notifications
