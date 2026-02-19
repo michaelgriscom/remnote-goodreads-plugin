@@ -13,6 +13,9 @@ const PARENT_REM_NAME = 'Goodreads Import';
 const BOOK_TAG_NAME = 'Book';
 const AUTHOR_TAG_NAME = 'Author';
 const AUTHORS_PROPERTY_NAME = 'Author(s)';
+const DEFAULT_SYNC_INTERVAL_MINUTES = 30;
+
+let syncIntervalId: ReturnType<typeof setInterval> | null = null;
 
 async function getOrCreateParentRem(plugin: ReactRNPlugin): Promise<PluginRem> {
     const existingRem = await plugin.rem.findByName([PARENT_REM_NAME], null);
@@ -186,6 +189,30 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
   }
 }
 
+function startPeriodicSync(plugin: ReactRNPlugin, intervalMinutes: number) {
+  stopPeriodicSync();
+
+  if (intervalMinutes <= 0) {
+    doLog('Automatic sync disabled (interval set to 0)');
+    return;
+  }
+
+  const intervalMs = intervalMinutes * 60 * 1000;
+  doLog(`Starting automatic sync every ${intervalMinutes} minute(s)`);
+  syncIntervalId = setInterval(() => {
+    doLog('Running automatic sync');
+    fetchGoodreads(plugin);
+  }, intervalMs);
+}
+
+function stopPeriodicSync() {
+  if (syncIntervalId !== null) {
+    clearInterval(syncIntervalId);
+    syncIntervalId = null;
+    doLog('Automatic sync stopped');
+  }
+}
+
 async function onActivate(plugin: ReactRNPlugin) {
   await plugin.settings.registerStringSetting({
     id: 'feedUrl',
@@ -197,7 +224,14 @@ async function onActivate(plugin: ReactRNPlugin) {
     title: 'Simplify book titles',
     description: 'Omit information like subtitles, editions, etc. from book titles',
     defaultValue: true,
-  })
+  });
+
+  await plugin.settings.registerNumberSetting({
+    id: 'syncIntervalMinutes',
+    title: 'Automatic sync interval (minutes)',
+    description: 'How often to automatically fetch from Goodreads (in minutes). Set to 0 to disable automatic sync. Changes take effect after plugin reload.',
+    defaultValue: DEFAULT_SYNC_INTERVAL_MINUTES,
+  });
 
   // Register a command to fetch books from Goodreads
   await plugin.app.registerCommand({
@@ -207,8 +241,14 @@ async function onActivate(plugin: ReactRNPlugin) {
       await fetchGoodreads(plugin);
     }
   });
+
+  // Start periodic sync based on setting
+  const syncInterval: number = await plugin.settings.getSetting('syncIntervalMinutes');
+  startPeriodicSync(plugin, syncInterval);
 }
 
-async function onDeactivate(_: ReactRNPlugin) { }
+async function onDeactivate(_: ReactRNPlugin) {
+  stopPeriodicSync();
+}
 
 declareIndexPlugin(onActivate, onDeactivate);
