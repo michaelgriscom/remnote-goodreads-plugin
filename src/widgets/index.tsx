@@ -84,6 +84,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'fetch-goodreads-shelf',
     name: 'Fetch Books from Goodreads Shelf',
     action: async () => {
+      await plugin.app.toast('Syncing Goodreads books...');
       await fetchGoodreads(plugin);
     }
   });
