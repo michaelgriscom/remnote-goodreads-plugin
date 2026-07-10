@@ -18,6 +18,8 @@ export interface SyncResult {
   imported: number;
   existing: number;
   total: number;
+  /** Number of feed items that could not be parsed */
+  skipped: number;
 }
 
 async function getOrCreateParentRem(plugin: RNPlugin): Promise<PluginRem> {
@@ -154,8 +156,8 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
   const xmlDoc = await fetchRss(feedUrl);
 
   const cleanupTitle: boolean = await plugin.settings.getSetting('cleanupTitles');
-  const books = parseBooks(xmlDoc, { cleanupTitle });
-  doLog(`Found ${books.length} book(s) in feed`);
+  const { books, skipped } = parseBooks(xmlDoc, { cleanupTitle });
+  doLog(`Parsed ${books.length} book(s) from feed (${skipped} skipped)`);
 
   const parentRem = await getOrCreateParentRem(plugin);
 
@@ -182,5 +184,6 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
     imported,
     existing: books.length - imported,
     total: books.length,
+    skipped,
   };
 }

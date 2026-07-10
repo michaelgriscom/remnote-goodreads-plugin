@@ -33,7 +33,15 @@ export async function fetchRss(feedUrl: string): Promise<Document> {
         }
       }
     );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Goodreads feed: HTTP ${response.status} ${response.statusText}`);
+    }
     const text = await response.text();
     const parser = new DOMParser();
-    return parser.parseFromString(text, 'text/xml');
+    const doc = parser.parseFromString(text, 'text/xml');
+    // DOMParser reports XML errors by embedding a parsererror element instead of throwing
+    if (doc.getElementsByTagName('parsererror').length > 0) {
+      throw new Error('Goodreads feed is not valid XML; check that the feed URL is correct');
+    }
+    return doc;
 }
