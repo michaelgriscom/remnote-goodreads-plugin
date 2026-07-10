@@ -1,4 +1,5 @@
 import {
+  AppEvents,
   declareIndexPlugin,
   type ReactRNPlugin,
   PropertyType,
@@ -11,6 +12,7 @@ import { doLog } from '../logging';
 import { BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS, runSyncWithStatus } from '../sync';
 
 const DEFAULT_SYNC_INTERVAL_MINUTES = 30;
+const SYNC_INTERVAL_SETTING_ID = 'syncIntervalMinutes';
 
 let syncIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -101,9 +103,9 @@ async function onActivate(plugin: ReactRNPlugin) {
   });
 
   await plugin.settings.registerNumberSetting({
-    id: 'syncIntervalMinutes',
+    id: SYNC_INTERVAL_SETTING_ID,
     title: 'Automatic sync interval (minutes)',
-    description: 'How often to automatically fetch from Goodreads (in minutes). Set to 0 to disable automatic sync. Changes take effect after plugin reload.',
+    description: 'How often to automatically fetch from Goodreads (in minutes). Set to 0 to disable automatic sync.',
     defaultValue: DEFAULT_SYNC_INTERVAL_MINUTES,
   });
 
@@ -122,11 +124,17 @@ async function onActivate(plugin: ReactRNPlugin) {
     widgetTabIcon: `${plugin.rootURL}logo.svg`,
   });
 
-  const syncInterval: number = await plugin.settings.getSetting('syncIntervalMinutes');
+  const syncInterval: number = await plugin.settings.getSetting(SYNC_INTERVAL_SETTING_ID);
   startPeriodicSync(plugin, syncInterval);
+
+  plugin.event.addListener(AppEvents.SettingChanged, SYNC_INTERVAL_SETTING_ID, async () => {
+    const newInterval: number = await plugin.settings.getSetting(SYNC_INTERVAL_SETTING_ID);
+    startPeriodicSync(plugin, newInterval);
+  });
 }
 
-async function onDeactivate(_: ReactRNPlugin) {
+async function onDeactivate(plugin: ReactRNPlugin) {
+  plugin.event.removeListener(AppEvents.SettingChanged, SYNC_INTERVAL_SETTING_ID);
   stopPeriodicSync();
 }
 
