@@ -25,8 +25,11 @@ const config = {
       .replace(/\.[tj]sx?$/, '')
       .replace(/\\/g, '/');
 
-    obj[rel] = el;
-    obj[`${rel}${SANDBOX_SUFFIX}`] = el;
+    // Newer glob versions strip the leading './', but webpack requires it
+    // to treat the entry as a relative path rather than a module request
+    const entryPath = el.startsWith('./') ? el : `./${el}`;
+    obj[rel] = entryPath;
+    obj[`${rel}${SANDBOX_SUFFIX}`] = entryPath;
     return obj;
   }, {}),
 
