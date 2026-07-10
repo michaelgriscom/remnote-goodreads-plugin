@@ -41,16 +41,18 @@ In development mode, webpack proxies `/goodreads/*` requests to `https://www.goo
 
 ### Data Model
 
-Imported data lives under a "Goodreads Import" document containing "Books" and "Authors" container Rems plus an "Author" tag Rem. "Books" contains "Currently Reading" and "Completed" group Rems; each book is parented under one based on whether it has a read date, and `setParent` on every sync moves books between groups when their read state changes.
+Imported data lives under a "Goodreads Import" document with H2 section Rems as direct children: "Currently Reading", "Completed", a blank separator Rem, then "Author". Each book is parented under "Currently Reading" or "Completed" based on whether it has a read date, and `setParent` on every sync moves books between sections when their read state changes.
 
 Each book Rem is tagged with the `goodreadsBook` powerup (registered in [src/widgets/index.tsx](src/widgets/index.tsx)), which has these property slots:
 - `bookId` - hidden, programmatic-only; stores the Goodreads book id
 - `authors` - multi-select relation; holds Rem references to author Rems
-- `dateRead` / `dateAdded` - date properties holding references to daily documents when permissions allow (plain-text date fallback otherwise)
+- `dateRead` / `dateAdded` - date properties holding references to daily documents (plain-text date fallback if the daily doc is inaccessible)
 
-Author Rems are created under "Authors", tagged with the "Author" tag Rem, and deduplicated by name, so multiple books by the same author share a single author Rem. A plain tag Rem is used (rather than a powerup) because RemNote's multi-select property configuration can only select regular tag rems as its source. Tagging is self-healing: if the "Author" tag rem is deleted, the next sync recreates it and re-tags existing authors.
+The "Author" section Rem doubles as the tag for author Rems: authors are parented under it, tagged with it, and deduplicated by name, so multiple books by the same author share a single author Rem. A plain rem is used as the tag (rather than a powerup) because RemNote's multi-select property configuration can only select regular tag rems as its source. Tagging is self-healing on every sync.
 
-The manifest requests the "Goodreads Import" subtree plus a `Powerup` scope for `goodreadsBook`; daily-document date links require broader access and degrade to plain text without it.
+Section and author lookups scan the parent's children by text (`findChildByText`) rather than using `findByName`, which proved unreliable and produced duplicate sections. Book identity is tracked in a synced-storage `bookId → remId` map (`STORAGE_KEYS.BOOK_REM_MAP`); enumerating `goodreadsBook`-tagged rems is the fallback, then title matching.
+
+The manifest requests the `All` scope (`ReadCreateModify`) — the same scope used by comparable sync plugins (remnote-readwise, remnote-raindrop-plugin) — because powerup rems, slot configuration, and daily documents all live outside any single subtree scope.
 
 ### Deduplication / Upsert
 

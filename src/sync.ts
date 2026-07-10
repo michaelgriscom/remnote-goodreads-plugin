@@ -4,11 +4,9 @@ import { GoodreadsBook, parseBooks } from './parseRss';
 import { fetchRss } from './fetchRss';
 
 const PARENT_REM_NAME = 'Goodreads Import';
-const BOOKS_CONTAINER_NAME = 'Books';
-const AUTHORS_CONTAINER_NAME = 'Authors';
-const AUTHOR_TAG_NAME = 'Author';
 const CURRENTLY_READING_NAME = 'Currently Reading';
 const COMPLETED_NAME = 'Completed';
+const AUTHOR_SECTION_NAME = 'Author';
 
 export const BOOK_POWERUP_CODE = 'goodreadsBook';
 export const BOOK_POWERUP_SLOTS = {
@@ -22,6 +20,7 @@ export const STORAGE_KEYS = {
   LAST_SYNC_TIME: 'goodreads-sync_last-sync-time',
   SYNC_STATUS: 'goodreads-sync_sync-status',
   SYNC_RESULT: 'goodreads-sync_sync-result',
+  BOOK_REM_MAP: 'goodreads-sync_book-rem-map',
 };
 
 export interface SyncResult {
@@ -49,25 +48,63 @@ async function getOrCreateParentRem(plugin: RNPlugin): Promise<PluginRem> {
   return parentRem;
 }
 
-async function getOrCreateChildRem(
+/**
+ * Find a direct child by its plain-text content. More reliable than
+ * findByName, which can miss rems and cause duplicate sections (and
+ * books seemingly vanishing into them) on re-sync.
+ */
+async function findChildByText(
   plugin: RNPlugin,
+  parent: PluginRem,
+  name: string
+): Promise<PluginRem | undefined> {
+  const children = await parent.getChildrenRem();
+  for (const child of children) {
+    if (!child.text) continue;
+    try {
+      if ((await plugin.richText.toString(child.text)) === name) {
+        return child;
+      }
+    } catch {
+      // Skip children with unparsable text
+    }
+  }
+  return undefined;
+}
+
+interface SectionOptions {
+  /** Insert a blank rem before the section for visual separation */
+  separatorBefore?: boolean;
+}
+
+async function getOrCreateSection(
+  plugin: RNPlugin,
+  parent: PluginRem,
   name: string,
-  parentId: string
+  { separatorBefore = false }: SectionOptions = {}
 ): Promise<PluginRem> {
-  const existingRem = await plugin.rem.findByName([name], parentId);
-  if (existingRem) {
-    doLog(`Rem "${name}" found (${existingRem._id})`);
-    return existingRem;
+  const existing = await findChildByText(plugin, parent, name);
+  if (existing) {
+    doLog(`Section "${name}" found (${existing._id})`);
+    return existing;
   }
 
-  const childRem = await plugin.rem.createRem();
-  if (!childRem) {
-    throw new Error(`Failed to create Rem "${name}"`);
+  if (separatorBefore) {
+    const separator = await plugin.rem.createRem();
+    if (separator) {
+      await separator.setParent(parent._id);
+    }
   }
-  await childRem.setText([name]);
-  await childRem.setParent(parentId);
-  doLog(`Rem "${name}" created (${childRem._id})`);
-  return childRem;
+
+  const section = await plugin.rem.createRem();
+  if (!section) {
+    throw new Error(`Failed to create section "${name}"`);
+  }
+  await section.setText([name]);
+  await section.setParent(parent._id);
+  await section.setFontSize('H2');
+  doLog(`Section "${name}" created (${section._id})`);
+  return section;
 }
 
 async function ensureTagged(rem: PluginRem, tag: PluginRem): Promise<void> {
@@ -77,18 +114,19 @@ async function ensureTagged(rem: PluginRem, tag: PluginRem): Promise<void> {
   }
 }
 
+/**
+ * The "Author" section rem doubles as the tag for author rems, so the
+ * Author(s) multi-select property can use it as its option source.
+ */
 async function getOrCreateAuthorRem(
   plugin: RNPlugin,
   authorName: string,
-  authorsContainerId: string,
-  authorTag: PluginRem
+  authorSection: PluginRem
 ): Promise<PluginRem> {
-  const existingRem = await plugin.rem.findByName([authorName], authorsContainerId);
+  const existingRem = await findChildByText(plugin, authorSection, authorName);
   if (existingRem) {
     doLog(`Author Rem "${authorName}" found (${existingRem._id})`);
-    // Self-healing: if the Author tag rem was deleted and recreated,
-    // re-tag existing authors on the next sync
-    await ensureTagged(existingRem, authorTag);
+    await ensureTagged(existingRem, authorSection);
     return existingRem;
   }
 
@@ -98,35 +136,50 @@ async function getOrCreateAuthorRem(
   }
   await authorRem.setText([authorName]);
   await authorRem.setIsDocument(true);
-  await authorRem.setParent(authorsContainerId);
-  await authorRem.addTag(authorTag);
+  await authorRem.setParent(authorSection._id);
+  await authorRem.addTag(authorSection);
   doLog(`Author Rem "${authorName}" created and tagged (${authorRem._id})`);
   return authorRem;
 }
 
 /**
- * Map every Rem carrying the book powerup by its stored Goodreads ID,
- * so syncs can upsert instead of relying on title matching.
+ * bookId → remId map persisted in synced storage. This is the primary
+ * dedup mechanism; enumerating powerup-tagged rems is the fallback.
+ */
+async function getBookRemMap(plugin: RNPlugin): Promise<Record<string, string>> {
+  return (await plugin.storage.getSynced<Record<string, string>>(STORAGE_KEYS.BOOK_REM_MAP)) || {};
+}
+
+async function saveBookRemMap(plugin: RNPlugin, map: Record<string, string>): Promise<void> {
+  await plugin.storage.setSynced(STORAGE_KEYS.BOOK_REM_MAP, map);
+}
+
+/**
+ * Map every Rem carrying the book powerup by its stored Goodreads ID.
+ * Fallback for books imported before the storage map existed.
  */
 async function buildBookIndex(plugin: RNPlugin): Promise<Map<string, PluginRem>> {
   const index = new Map<string, PluginRem>();
-  const powerup = await plugin.powerup.getPowerupByCode(BOOK_POWERUP_CODE);
-  const taggedRems = (await powerup?.taggedRem()) ?? [];
-  for (const rem of taggedRems) {
-    const bookId = await rem.getPowerupProperty(BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS.BOOK_ID);
-    if (bookId) {
-      index.set(bookId, rem);
+  try {
+    const powerup = await plugin.powerup.getPowerupByCode(BOOK_POWERUP_CODE);
+    const taggedRems = (await powerup?.taggedRem()) ?? [];
+    for (const rem of taggedRems) {
+      const bookId = await rem.getPowerupProperty(BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS.BOOK_ID);
+      if (bookId) {
+        index.set(bookId, rem);
+      }
     }
+  } catch (error) {
+    doError(`Failed to enumerate powerup-tagged books: ${error}`);
   }
-  doLog(`Found ${index.size} previously imported book(s)`);
+  doLog(`Found ${index.size} previously imported book(s) via powerup`);
   return index;
 }
 
 /**
  * Build a date property value as a reference to the date's daily
  * document, so the book shows up as a backlink on that date. Falls
- * back to plain text if the daily document can't be created or the
- * plugin's permission scope doesn't cover daily documents.
+ * back to plain text if the daily document can't be created.
  */
 async function dateProperty(plugin: RNPlugin, date: Date): Promise<RichTextInterface> {
   try {
@@ -142,25 +195,30 @@ async function dateProperty(plugin: RNPlugin, date: Date): Promise<RichTextInter
 
 interface SyncContext {
   plugin: RNPlugin;
-  booksContainerId: string;
-  currentlyReadingId: string;
-  completedId: string;
-  authorsContainerId: string;
-  authorTag: PluginRem;
+  currentlyReading: PluginRem;
+  completed: PluginRem;
+  authorSection: PluginRem;
+  bookRemMap: Record<string, string>;
   bookIndex: Map<string, PluginRem>;
 }
 
 async function findExistingBookRem(
   book: GoodreadsBook,
-  { plugin, booksContainerId, currentlyReadingId, completedId, bookIndex }: SyncContext
+  { plugin, currentlyReading, completed, bookRemMap, bookIndex }: SyncContext
 ): Promise<PluginRem | undefined> {
-  if (book.bookId && bookIndex.has(book.bookId)) {
-    return bookIndex.get(book.bookId);
+  if (book.bookId) {
+    const mappedRemId = bookRemMap[book.bookId];
+    if (mappedRemId) {
+      const rem = await plugin.rem.findOne(mappedRemId);
+      if (rem) return rem;
+    }
+    if (bookIndex.has(book.bookId)) {
+      return bookIndex.get(book.bookId);
+    }
   }
-  // Fall back to title matching for rems imported before the
-  // Goodreads ID was captured (or feed items without one)
-  for (const parentId of [currentlyReadingId, completedId, booksContainerId]) {
-    const byTitle = await plugin.rem.findByName([book.title], parentId);
+  // Fall back to title matching for rems without a tracked id
+  for (const section of [currentlyReading, completed]) {
+    const byTitle = await findChildByText(plugin, section, book.title);
     if (byTitle) return byTitle;
   }
   return undefined;
@@ -170,13 +228,13 @@ async function upsertBookRem(
   book: GoodreadsBook,
   context: SyncContext
 ): Promise<{ created: boolean }> {
-  const { plugin, currentlyReadingId, completedId, authorsContainerId, authorTag } = context;
+  const { plugin, currentlyReading, completed, authorSection, bookRemMap } = context;
   const { bookId, title, author, dateRead, dateAddedToShelf } = book;
 
   // A book with a read date is completed; one without is in progress.
   // setParent also moves existing books between the groups when their
   // read state changes on Goodreads.
-  const statusParentId = dateRead ? completedId : currentlyReadingId;
+  const statusParent = dateRead ? completed : currentlyReading;
 
   let bookRem = await findExistingBookRem(book, context);
   const created = !bookRem;
@@ -193,17 +251,18 @@ async function upsertBookRem(
   } else {
     doLog(`Rem for "${title}" exists (${bookRem._id}), updating`);
   }
-  await bookRem.setParent(statusParentId);
+  await bookRem.setParent(statusParent._id);
 
   // Idempotent: adding an already-present powerup is a no-op
   await bookRem.addPowerup(BOOK_POWERUP_CODE);
 
   if (bookId) {
     await bookRem.setPowerupProperty(BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS.BOOK_ID, [bookId]);
+    bookRemMap[bookId] = bookRem._id;
   }
 
   if (author) {
-    const authorRem = await getOrCreateAuthorRem(plugin, author, authorsContainerId, authorTag);
+    const authorRem = await getOrCreateAuthorRem(plugin, author, authorSection);
     const authorRichText = await plugin.richText.rem(authorRem).value();
     await bookRem.setPowerupProperty(
       BOOK_POWERUP_CODE,
@@ -271,27 +330,18 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
   doLog(`Parsed ${books.length} book(s) from feed (${skipped} skipped)`);
 
   const parentRem = await getOrCreateParentRem(plugin);
-  const booksContainer = await getOrCreateChildRem(plugin, BOOKS_CONTAINER_NAME, parentRem._id);
-  const currentlyReading = await getOrCreateChildRem(
-    plugin,
-    CURRENTLY_READING_NAME,
-    booksContainer._id
-  );
-  const completed = await getOrCreateChildRem(plugin, COMPLETED_NAME, booksContainer._id);
-  const authorsContainer = await getOrCreateChildRem(
-    plugin,
-    AUTHORS_CONTAINER_NAME,
-    parentRem._id
-  );
-  const authorTag = await getOrCreateChildRem(plugin, AUTHOR_TAG_NAME, parentRem._id);
+  const currentlyReading = await getOrCreateSection(plugin, parentRem, CURRENTLY_READING_NAME);
+  const completed = await getOrCreateSection(plugin, parentRem, COMPLETED_NAME);
+  const authorSection = await getOrCreateSection(plugin, parentRem, AUTHOR_SECTION_NAME, {
+    separatorBefore: true,
+  });
 
   const context: SyncContext = {
     plugin,
-    booksContainerId: booksContainer._id,
-    currentlyReadingId: currentlyReading._id,
-    completedId: completed._id,
-    authorsContainerId: authorsContainer._id,
-    authorTag,
+    currentlyReading,
+    completed,
+    authorSection,
+    bookRemMap: await getBookRemMap(plugin),
     bookIndex: await buildBookIndex(plugin),
   };
 
@@ -305,6 +355,7 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
     }
   }
 
+  await saveBookRemMap(plugin, context.bookRemMap);
   await plugin.storage.setSynced(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
 
   return {
