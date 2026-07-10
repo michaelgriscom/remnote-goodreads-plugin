@@ -41,14 +41,16 @@ In development mode, webpack proxies `/goodreads/*` requests to `https://www.goo
 
 ### Data Model
 
-Imported data lives under a "Goodreads Import" document containing "Books" and "Authors" container Rems plus an "Author" tag Rem.
+Imported data lives under a "Goodreads Import" document containing "Books" and "Authors" container Rems.
 
 Each book Rem is created under "Books" and tagged with the `goodreadsBook` powerup (registered in [src/widgets/index.tsx](src/widgets/index.tsx)), which has these property slots:
 - `bookId` - hidden, programmatic-only; stores the Goodreads book id
 - `authors` - multi-select relation; holds Rem references to author Rems
-- `dateRead` / `dateAdded` - date properties
+- `dateRead` / `dateAdded` - date properties holding references to daily documents, so books appear as backlinks on those dates
 
-Author Rems are created under "Authors", tagged with the "Author" tag Rem, and deduplicated by name, so multiple books by the same author share a single author Rem.
+Author Rems are created under "Authors", tagged with the `goodreadsAuthor` powerup, and deduplicated by name, so multiple books by the same author share a single author Rem. Powerups are used (rather than plain tag Rems) so there are no bare tag rems in the user's document tree to accidentally delete.
+
+The manifest requests the `All` scope because powerup Rems and daily documents live outside the "Goodreads Import" subtree.
 
 ### Deduplication / Upsert
 

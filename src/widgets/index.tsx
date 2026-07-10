@@ -2,6 +2,7 @@ import {
   AppEvents,
   declareIndexPlugin,
   type ReactRNPlugin,
+  PropertyLocation,
   PropertyType,
   SelectSourceType,
   WidgetLocation,
@@ -9,7 +10,12 @@ import {
 import '../style.css';
 import '../index.css';
 import { doLog } from '../logging';
-import { BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS, runSyncWithStatus } from '../sync';
+import {
+  AUTHOR_POWERUP_CODE,
+  BOOK_POWERUP_CODE,
+  BOOK_POWERUP_SLOTS,
+  runSyncWithStatus,
+} from '../sync';
 
 const DEFAULT_SYNC_INTERVAL_MINUTES = 30;
 const SYNC_INTERVAL_SETTING_ID = 'syncIntervalMinutes';
@@ -75,19 +81,29 @@ async function onActivate(plugin: ReactRNPlugin) {
           name: 'Author(s)',
           propertyType: PropertyType.MULTI_SELECT,
           selectSourceType: SelectSourceType.Relation,
+          propertyLocation: PropertyLocation.RIGHT,
         },
         {
           code: BOOK_POWERUP_SLOTS.DATE_READ,
           name: 'Date Read',
           propertyType: PropertyType.DATE,
+          propertyLocation: PropertyLocation.RIGHT,
         },
         {
           code: BOOK_POWERUP_SLOTS.DATE_ADDED,
           name: 'Date Added',
           propertyType: PropertyType.DATE,
+          propertyLocation: PropertyLocation.RIGHT,
         },
       ],
     },
+  });
+
+  await plugin.app.registerPowerup({
+    name: 'Goodreads Author',
+    code: AUTHOR_POWERUP_CODE,
+    description: 'An author imported from a Goodreads shelf',
+    options: { slots: [] },
   });
 
   await plugin.settings.registerStringSetting({

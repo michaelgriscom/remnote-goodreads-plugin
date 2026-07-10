@@ -6,8 +6,8 @@ import { fetchRss } from './fetchRss';
 const PARENT_REM_NAME = 'Goodreads Import';
 const BOOKS_CONTAINER_NAME = 'Books';
 const AUTHORS_CONTAINER_NAME = 'Authors';
-const AUTHOR_TAG_NAME = 'Author';
 
+export const AUTHOR_POWERUP_CODE = 'goodreadsAuthor';
 export const BOOK_POWERUP_CODE = 'goodreadsBook';
 export const BOOK_POWERUP_SLOTS = {
   BOOK_ID: 'bookId',
@@ -71,8 +71,7 @@ async function getOrCreateChildRem(
 async function getOrCreateAuthorRem(
   plugin: RNPlugin,
   authorName: string,
-  authorsContainerId: string,
-  authorTag: PluginRem
+  authorsContainerId: string
 ): Promise<PluginRem> {
   const existingRem = await plugin.rem.findByName([authorName], authorsContainerId);
   if (existingRem) {
@@ -87,7 +86,7 @@ async function getOrCreateAuthorRem(
   await authorRem.setText([authorName]);
   await authorRem.setIsDocument(true);
   await authorRem.setParent(authorsContainerId);
-  await authorRem.addTag(authorTag);
+  await authorRem.addPowerup(AUTHOR_POWERUP_CODE);
   doLog(`Author Rem "${authorName}" created and tagged (${authorRem._id})`);
   return authorRem;
 }
@@ -110,7 +109,16 @@ async function buildBookIndex(plugin: RNPlugin): Promise<Map<string, PluginRem>>
   return index;
 }
 
-function formatDateProperty(date: Date): RichTextInterface {
+/**
+ * Build a date property value as a reference to the date's daily
+ * document, so the book shows up as a backlink on that date. Falls
+ * back to plain text if the daily document can't be created.
+ */
+async function dateProperty(plugin: RNPlugin, date: Date): Promise<RichTextInterface> {
+  const dailyDoc = await plugin.date.getDailyDoc(date);
+  if (dailyDoc) {
+    return await plugin.richText.rem(dailyDoc).value();
+  }
   return [date.toISOString().slice(0, 10)];
 }
 
@@ -118,7 +126,6 @@ interface SyncContext {
   plugin: RNPlugin;
   booksContainerId: string;
   authorsContainerId: string;
-  authorTag: PluginRem;
   bookIndex: Map<string, PluginRem>;
 }
 
@@ -139,7 +146,7 @@ async function upsertBookRem(
   book: GoodreadsBook,
   context: SyncContext
 ): Promise<{ created: boolean }> {
-  const { plugin, booksContainerId, authorsContainerId, authorTag } = context;
+  const { plugin, booksContainerId, authorsContainerId } = context;
   const { bookId, title, author, dateRead, dateAddedToShelf } = book;
 
   let bookRem = await findExistingBookRem(book, context);
@@ -167,7 +174,7 @@ async function upsertBookRem(
   }
 
   if (author) {
-    const authorRem = await getOrCreateAuthorRem(plugin, author, authorsContainerId, authorTag);
+    const authorRem = await getOrCreateAuthorRem(plugin, author, authorsContainerId);
     const authorRichText = await plugin.richText.rem(authorRem).value();
     await bookRem.setPowerupProperty(
       BOOK_POWERUP_CODE,
@@ -180,7 +187,7 @@ async function upsertBookRem(
     await bookRem.setPowerupProperty(
       BOOK_POWERUP_CODE,
       BOOK_POWERUP_SLOTS.DATE_READ,
-      formatDateProperty(dateRead)
+      await dateProperty(plugin, dateRead)
     );
   }
 
@@ -188,7 +195,7 @@ async function upsertBookRem(
     await bookRem.setPowerupProperty(
       BOOK_POWERUP_CODE,
       BOOK_POWERUP_SLOTS.DATE_ADDED,
-      formatDateProperty(dateAddedToShelf)
+      await dateProperty(plugin, dateAddedToShelf)
     );
   }
 
@@ -241,13 +248,11 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
     AUTHORS_CONTAINER_NAME,
     parentRem._id
   );
-  const authorTag = await getOrCreateChildRem(plugin, AUTHOR_TAG_NAME, parentRem._id);
 
   const context: SyncContext = {
     plugin,
     booksContainerId: booksContainer._id,
     authorsContainerId: authorsContainer._id,
-    authorTag,
     bookIndex: await buildBookIndex(plugin),
   };
 
