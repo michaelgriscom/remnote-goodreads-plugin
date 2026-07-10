@@ -23,10 +23,11 @@ Optional settings:
 
 Books are imported under a "Goodreads Import" document, grouped under
 "Currently Reading" or "Completed" sections depending on whether they
-have a read date, and move between the sections as your shelf changes.
-Authors live under an "Author" section and are tagged with it. Each book
-is tagged with the "Goodreads Book" powerup, which provides Author(s),
-Date Read, and Date Added properties.
+have a read date. Books move to "Completed" when they gain a read date
+or drop out of the feed (e.g. finishing a book removes it from a
+currently-reading shelf). Authors live under an "Author" section and
+are tagged with it. Each book is tagged with the "Goodreads Book"
+powerup, which provides an Author(s) property.
 
 To sync manually, either:
 - Open the command palette and run the "Fetch Books from Goodreads Shelf" command, or

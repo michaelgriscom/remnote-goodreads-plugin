@@ -41,12 +41,13 @@ In development mode, webpack proxies `/goodreads/*` requests to `https://www.goo
 
 ### Data Model
 
-Imported data lives under a "Goodreads Import" document with H2 section Rems as direct children: "Currently Reading", "Completed", a blank separator Rem, then "Author". Each book is parented under "Currently Reading" or "Completed" based on whether it has a read date, and `setParent` on every sync moves books between sections when their read state changes.
+Imported data lives under a "Goodreads Import" document with section Rems as direct children: "Currently Reading" (H3), "Completed" (H3), a blank separator Rem, then "Author" (plain text). Each book is parented under "Currently Reading" or "Completed" based on whether it has a read date, and is reparented when its read state changes (only when the section actually differs — unconditional `setParent` reorders siblings and made books visibly reshuffle on every sync). Tracked books that disappear from the feed are moved to "Completed", since a currently-reading shelf drops books once they are marked read.
 
 Each book Rem is tagged with the `goodreadsBook` powerup (registered in [src/widgets/index.tsx](src/widgets/index.tsx)), which has these property slots:
 - `bookId` - hidden, programmatic-only; stores the Goodreads book id
 - `authors` - multi-select relation; holds Rem references to author Rems
-- `dateRead` / `dateAdded` - date properties holding references to daily documents (plain-text date fallback if the daily doc is inaccessible)
+
+The parser still extracts read/added dates (the read date drives section placement) but they are not written as properties.
 
 The "Author" section Rem doubles as the tag for author Rems: authors are parented under it, tagged with it, and deduplicated by name, so multiple books by the same author share a single author Rem. A plain rem is used as the tag (rather than a powerup) because RemNote's multi-select property configuration can only select regular tag rems as its source. Tagging is self-healing on every sync.
 

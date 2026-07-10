@@ -76,16 +76,6 @@ async function onActivate(plugin: ReactRNPlugin) {
           propertyType: PropertyType.MULTI_SELECT,
           selectSourceType: SelectSourceType.Relation,
         },
-        {
-          code: BOOK_POWERUP_SLOTS.DATE_READ,
-          name: 'Date Read',
-          propertyType: PropertyType.DATE,
-        },
-        {
-          code: BOOK_POWERUP_SLOTS.DATE_ADDED,
-          name: 'Date Added',
-          propertyType: PropertyType.DATE,
-        },
       ],
     },
   });

@@ -1,4 +1,4 @@
-import { type RNPlugin, PluginRem, RichTextInterface } from '@remnote/plugin-sdk';
+import { type RNPlugin, PluginRem } from '@remnote/plugin-sdk';
 import { doError, doLog } from './logging';
 import { GoodreadsBook, parseBooks } from './parseRss';
 import { fetchRss } from './fetchRss';
@@ -12,8 +12,6 @@ export const BOOK_POWERUP_CODE = 'goodreadsBook';
 export const BOOK_POWERUP_SLOTS = {
   BOOK_ID: 'bookId',
   AUTHORS: 'authors',
-  DATE_READ: 'dateRead',
-  DATE_ADDED: 'dateAdded',
 };
 
 export const STORAGE_KEYS = {
@@ -75,17 +73,20 @@ async function findChildByText(
 interface SectionOptions {
   /** Insert a blank rem before the section for visual separation */
   separatorBefore?: boolean;
+  /** Heading size; RemNote supports H1-H3 only. Omit for plain text */
+  fontSize?: 'H1' | 'H2' | 'H3';
 }
 
 async function getOrCreateSection(
   plugin: RNPlugin,
   parent: PluginRem,
   name: string,
-  { separatorBefore = false }: SectionOptions = {}
+  { separatorBefore = false, fontSize }: SectionOptions = {}
 ): Promise<PluginRem> {
   const existing = await findChildByText(plugin, parent, name);
   if (existing) {
     doLog(`Section "${name}" found (${existing._id})`);
+    await existing.setFontSize(fontSize);
     return existing;
   }
 
@@ -102,7 +103,7 @@ async function getOrCreateSection(
   }
   await section.setText([name]);
   await section.setParent(parent._id);
-  await section.setFontSize('H2');
+  await section.setFontSize(fontSize);
   doLog(`Section "${name}" created (${section._id})`);
   return section;
 }
@@ -176,23 +177,6 @@ async function buildBookIndex(plugin: RNPlugin): Promise<Map<string, PluginRem>>
   return index;
 }
 
-/**
- * Build a date property value as a reference to the date's daily
- * document, so the book shows up as a backlink on that date. Falls
- * back to plain text if the daily document can't be created.
- */
-async function dateProperty(plugin: RNPlugin, date: Date): Promise<RichTextInterface> {
-  try {
-    const dailyDoc = await plugin.date.getDailyDoc(date);
-    if (dailyDoc) {
-      return await plugin.richText.rem(dailyDoc).value();
-    }
-  } catch (error) {
-    doLog(`Could not link daily document for date, storing as text: ${error}`);
-  }
-  return [date.toISOString().slice(0, 10)];
-}
-
 interface SyncContext {
   plugin: RNPlugin;
   currentlyReading: PluginRem;
@@ -229,11 +213,9 @@ async function upsertBookRem(
   context: SyncContext
 ): Promise<{ created: boolean }> {
   const { plugin, currentlyReading, completed, authorSection, bookRemMap } = context;
-  const { bookId, title, author, dateRead, dateAddedToShelf } = book;
+  const { bookId, title, author, dateRead } = book;
 
-  // A book with a read date is completed; one without is in progress.
-  // setParent also moves existing books between the groups when their
-  // read state changes on Goodreads.
+  // A book with a read date is completed; one without is in progress
   const statusParent = dateRead ? completed : currentlyReading;
 
   let bookRem = await findExistingBookRem(book, context);
@@ -251,7 +233,12 @@ async function upsertBookRem(
   } else {
     doLog(`Rem for "${title}" exists (${bookRem._id}), updating`);
   }
-  await bookRem.setParent(statusParent._id);
+  // Only reparent when the section actually changed; unconditional
+  // setParent moves the rem to the end of its siblings, which made
+  // books visibly reshuffle on every sync
+  if (bookRem.parent !== statusParent._id) {
+    await bookRem.setParent(statusParent._id);
+  }
 
   // Idempotent: adding an already-present powerup is a no-op
   await bookRem.addPowerup(BOOK_POWERUP_CODE);
@@ -268,22 +255,6 @@ async function upsertBookRem(
       BOOK_POWERUP_CODE,
       BOOK_POWERUP_SLOTS.AUTHORS,
       authorRichText
-    );
-  }
-
-  if (dateRead) {
-    await bookRem.setPowerupProperty(
-      BOOK_POWERUP_CODE,
-      BOOK_POWERUP_SLOTS.DATE_READ,
-      await dateProperty(plugin, dateRead)
-    );
-  }
-
-  if (dateAddedToShelf) {
-    await bookRem.setPowerupProperty(
-      BOOK_POWERUP_CODE,
-      BOOK_POWERUP_SLOTS.DATE_ADDED,
-      await dateProperty(plugin, dateAddedToShelf)
     );
   }
 
@@ -330,8 +301,12 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
   doLog(`Parsed ${books.length} book(s) from feed (${skipped} skipped)`);
 
   const parentRem = await getOrCreateParentRem(plugin);
-  const currentlyReading = await getOrCreateSection(plugin, parentRem, CURRENTLY_READING_NAME);
-  const completed = await getOrCreateSection(plugin, parentRem, COMPLETED_NAME);
+  const currentlyReading = await getOrCreateSection(plugin, parentRem, CURRENTLY_READING_NAME, {
+    fontSize: 'H3',
+  });
+  const completed = await getOrCreateSection(plugin, parentRem, COMPLETED_NAME, {
+    fontSize: 'H3',
+  });
   const authorSection = await getOrCreateSection(plugin, parentRem, AUTHOR_SECTION_NAME, {
     separatorBefore: true,
   });
@@ -352,6 +327,24 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
       if (created) imported++;
     } catch (error) {
       doError(`Failed to sync "${book.title}": ${error}`);
+    }
+  }
+
+  // Books tracked from earlier syncs that no longer appear in the feed
+  // are treated as finished: a currently-reading shelf drops a book
+  // once it is marked as read on Goodreads
+  const feedIds = new Set(books.map((b) => b.bookId).filter((id) => id));
+  for (const [bookId, remId] of Object.entries(context.bookRemMap)) {
+    if (feedIds.has(bookId)) continue;
+    const rem = await plugin.rem.findOne(remId);
+    if (!rem) {
+      // The rem was deleted by the user; stop tracking it
+      delete context.bookRemMap[bookId];
+      continue;
+    }
+    if (rem.parent === currentlyReading._id) {
+      doLog(`"${bookId}" no longer in feed, moving rem ${remId} to ${COMPLETED_NAME}`);
+      await rem.setParent(completed._id);
     }
   }
 
