@@ -3,17 +3,14 @@ var glob = require('glob');
 var path = require('path');
 
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const { ESBuildMinifyPlugin } = require('esbuild-loader');
+const { EsbuildPlugin } = require('esbuild-loader');
 const { ProvidePlugin, BannerPlugin } = require('webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 const CopyPlugin = require('copy-webpack-plugin');
 
 const isProd = process.env.NODE_ENV === 'production';
 const isDevelopment = !isProd;
-
-const fastRefresh = isDevelopment ? new ReactRefreshWebpackPlugin() : null;
 
 const SANDBOX_SUFFIX = '-sandbox';
 
@@ -25,8 +22,11 @@ const config = {
       .replace(/\.[tj]sx?$/, '')
       .replace(/\\/g, '/');
 
-    obj[rel] = el;
-    obj[`${rel}${SANDBOX_SUFFIX}`] = el;
+    // Newer glob versions strip the leading './', but webpack requires it
+    // to treat the entry as a relative path rather than a module request
+    const entryPath = el.startsWith('./') ? el : `./${el}`;
+    obj[rel] = entryPath;
+    obj[`${rel}${SANDBOX_SUFFIX}`] = entryPath;
     return obj;
   }, {}),
 
@@ -99,14 +99,13 @@ const config = {
         { from: 'README.md', to: '' },
       ],
     }),
-    fastRefresh,
   ].filter(Boolean),
 };
 
 if (isProd) {
   config.optimization = {
     minimize: isProd,
-    minimizer: [new ESBuildMinifyPlugin()],
+    minimizer: [new EsbuildPlugin()],
   };
 } else {
   // for more information, see https://webpack.js.org/configuration/dev-server
@@ -120,17 +119,20 @@ if (isProd) {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'baggage, sentry-trace',
     },
-    proxy: {
-      '/goodreads': {
+    proxy: [
+      {
+        context: ['/goodreads'],
         target: 'https://www.goodreads.com',
         changeOrigin: true,
         secure: false,
         pathRewrite: { '^/goodreads': '' },
-        onProxyReq: (proxyReq) => {
-          proxyReq.setHeader('origin', 'https://www.goodreads.com');
+        on: {
+          proxyReq: (proxyReq) => {
+            proxyReq.setHeader('origin', 'https://www.goodreads.com');
+          },
         },
       },
-    },
+    ],
   };
 }
 
