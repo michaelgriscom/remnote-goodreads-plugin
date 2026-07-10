@@ -1,12 +1,14 @@
 import {
   declareIndexPlugin,
   type ReactRNPlugin,
+  PropertyType,
+  SelectSourceType,
   WidgetLocation,
 } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../index.css';
 import { doLog } from '../logging';
-import { runSyncWithStatus } from '../sync';
+import { BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS, runSyncWithStatus } from '../sync';
 
 const DEFAULT_SYNC_INTERVAL_MINUTES = 30;
 
@@ -53,6 +55,39 @@ function stopPeriodicSync() {
 }
 
 async function onActivate(plugin: ReactRNPlugin) {
+  await plugin.app.registerPowerup({
+    name: 'Goodreads Book',
+    code: BOOK_POWERUP_CODE,
+    description: 'A book imported from a Goodreads shelf',
+    options: {
+      slots: [
+        {
+          code: BOOK_POWERUP_SLOTS.BOOK_ID,
+          name: 'Goodreads ID',
+          hidden: true,
+          onlyProgrammaticModifying: true,
+          propertyType: PropertyType.TEXT,
+        },
+        {
+          code: BOOK_POWERUP_SLOTS.AUTHORS,
+          name: 'Author(s)',
+          propertyType: PropertyType.MULTI_SELECT,
+          selectSourceType: SelectSourceType.Relation,
+        },
+        {
+          code: BOOK_POWERUP_SLOTS.DATE_READ,
+          name: 'Date Read',
+          propertyType: PropertyType.DATE,
+        },
+        {
+          code: BOOK_POWERUP_SLOTS.DATE_ADDED,
+          name: 'Date Added',
+          propertyType: PropertyType.DATE,
+        },
+      ],
+    },
+  });
+
   await plugin.settings.registerStringSetting({
     id: 'feedUrl',
     title: 'Goodreads RSS feed',

@@ -1,12 +1,20 @@
-import { type RNPlugin, PluginRem } from '@remnote/plugin-sdk';
+import { type RNPlugin, PluginRem, RichTextInterface } from '@remnote/plugin-sdk';
 import { doError, doLog } from './logging';
 import { GoodreadsBook, parseBooks } from './parseRss';
 import { fetchRss } from './fetchRss';
 
 const PARENT_REM_NAME = 'Goodreads Import';
-const BOOK_TAG_NAME = 'Book';
+const BOOKS_CONTAINER_NAME = 'Books';
+const AUTHORS_CONTAINER_NAME = 'Authors';
 const AUTHOR_TAG_NAME = 'Author';
-const AUTHORS_PROPERTY_NAME = 'Author(s)';
+
+export const BOOK_POWERUP_CODE = 'goodreadsBook';
+export const BOOK_POWERUP_SLOTS = {
+  BOOK_ID: 'bookId',
+  AUTHORS: 'authors',
+  DATE_READ: 'dateRead',
+  DATE_ADDED: 'dateAdded',
+};
 
 export const STORAGE_KEYS = {
   LAST_SYNC_TIME: 'goodreads-sync_last-sync-time',
@@ -39,55 +47,34 @@ async function getOrCreateParentRem(plugin: RNPlugin): Promise<PluginRem> {
   return parentRem;
 }
 
-async function getOrCreateTagRem(
+async function getOrCreateChildRem(
   plugin: RNPlugin,
-  tagName: string,
+  name: string,
   parentId: string
 ): Promise<PluginRem> {
-  const existingRem = await plugin.rem.findByName([tagName], parentId);
+  const existingRem = await plugin.rem.findByName([name], parentId);
   if (existingRem) {
-    doLog(`Tag Rem "${tagName}" found (${existingRem._id})`);
+    doLog(`Rem "${name}" found (${existingRem._id})`);
     return existingRem;
   }
 
-  const tagRem = await plugin.rem.createRem();
-  if (!tagRem) {
-    throw new Error(`Failed to create tag Rem "${tagName}"`);
+  const childRem = await plugin.rem.createRem();
+  if (!childRem) {
+    throw new Error(`Failed to create Rem "${name}"`);
   }
-  await tagRem.setText([tagName]);
-  await tagRem.setParent(parentId);
-  doLog(`Tag Rem "${tagName}" created (${tagRem._id})`);
-  return tagRem;
-}
-
-async function getOrCreateAuthorPropertyRem(
-  plugin: RNPlugin,
-  bookTag: PluginRem
-): Promise<PluginRem> {
-  const existingRem = await plugin.rem.findByName([AUTHORS_PROPERTY_NAME], bookTag._id);
-  if (existingRem) {
-    doLog(`Author(s) property found (${existingRem._id})`);
-    return existingRem;
-  }
-
-  const propertyRem = await plugin.rem.createRem();
-  if (!propertyRem) {
-    throw new Error(`Failed to create Author(s) property Rem`);
-  }
-  await propertyRem.setText([AUTHORS_PROPERTY_NAME]);
-  await propertyRem.setParent(bookTag._id);
-  await propertyRem.setIsProperty(true);
-  doLog(`Author(s) property created (${propertyRem._id})`);
-  return propertyRem;
+  await childRem.setText([name]);
+  await childRem.setParent(parentId);
+  doLog(`Rem "${name}" created (${childRem._id})`);
+  return childRem;
 }
 
 async function getOrCreateAuthorRem(
   plugin: RNPlugin,
   authorName: string,
-  parentId: string,
+  authorsContainerId: string,
   authorTag: PluginRem
 ): Promise<PluginRem> {
-  const existingRem = await plugin.rem.findByName([authorName], parentId);
+  const existingRem = await plugin.rem.findByName([authorName], authorsContainerId);
   if (existingRem) {
     doLog(`Author Rem "${authorName}" found (${existingRem._id})`);
     return existingRem;
@@ -99,56 +86,114 @@ async function getOrCreateAuthorRem(
   }
   await authorRem.setText([authorName]);
   await authorRem.setIsDocument(true);
-  await authorRem.setParent(parentId);
+  await authorRem.setParent(authorsContainerId);
   await authorRem.addTag(authorTag);
   doLog(`Author Rem "${authorName}" created and tagged (${authorRem._id})`);
   return authorRem;
 }
 
-interface CreateBookOptions {
-  plugin: RNPlugin;
-  parentId: string;
-  bookTag: PluginRem;
-  authorTag: PluginRem;
-  authorsPropertyId: string;
+/**
+ * Map every Rem carrying the book powerup by its stored Goodreads ID,
+ * so syncs can upsert instead of relying on title matching.
+ */
+async function buildBookIndex(plugin: RNPlugin): Promise<Map<string, PluginRem>> {
+  const index = new Map<string, PluginRem>();
+  const powerup = await plugin.powerup.getPowerupByCode(BOOK_POWERUP_CODE);
+  const taggedRems = (await powerup?.taggedRem()) ?? [];
+  for (const rem of taggedRems) {
+    const bookId = await rem.getPowerupProperty(BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS.BOOK_ID);
+    if (bookId) {
+      index.set(bookId, rem);
+    }
+  }
+  doLog(`Found ${index.size} previously imported book(s)`);
+  return index;
 }
 
-async function createRemForBook(
+function formatDateProperty(date: Date): RichTextInterface {
+  return [date.toISOString().slice(0, 10)];
+}
+
+interface SyncContext {
+  plugin: RNPlugin;
+  booksContainerId: string;
+  authorsContainerId: string;
+  authorTag: PluginRem;
+  bookIndex: Map<string, PluginRem>;
+}
+
+async function findExistingBookRem(
   book: GoodreadsBook,
-  { plugin, parentId, bookTag, authorTag, authorsPropertyId }: CreateBookOptions
+  { plugin, booksContainerId, bookIndex }: SyncContext
 ): Promise<PluginRem | undefined> {
-  const { title, author } = book;
-
-  const existingRem = await plugin.rem.findByName([title], parentId);
-  if (existingRem) {
-    doLog(`Rem for "${title}" exists (${existingRem._id}), skipping`);
-    return;
-  } else {
-    doLog(`No rem for "${title}" found, creating`);
+  if (book.bookId && bookIndex.has(book.bookId)) {
+    return bookIndex.get(book.bookId);
   }
+  // Fall back to title matching for rems imported before the
+  // Goodreads ID was captured (or feed items without one)
+  const byTitle = await plugin.rem.findByName([book.title], booksContainerId);
+  return byTitle ?? undefined;
+}
 
-  const bookRem = await plugin.rem.createRem();
+async function upsertBookRem(
+  book: GoodreadsBook,
+  context: SyncContext
+): Promise<{ created: boolean }> {
+  const { plugin, booksContainerId, authorsContainerId, authorTag } = context;
+  const { bookId, title, author, dateRead, dateAddedToShelf } = book;
+
+  let bookRem = await findExistingBookRem(book, context);
+  const created = !bookRem;
+
   if (!bookRem) {
-    doError(`Failed to create Rem "${title}"`);
-    return;
+    doLog(`No rem for "${title}" found, creating`);
+    const newRem = await plugin.rem.createRem();
+    if (!newRem) {
+      throw new Error(`Failed to create Rem "${title}"`);
+    }
+    await newRem.setText([title]);
+    await newRem.setIsDocument(true);
+    await newRem.setParent(booksContainerId);
+    bookRem = newRem;
+  } else {
+    doLog(`Rem for "${title}" exists (${bookRem._id}), updating`);
   }
-  doLog(`Rem created for "${title}" (${bookRem._id})`);
-  await bookRem.setText([title]);
-  await bookRem.setIsDocument(true);
-  await bookRem.setParent(parentId);
 
-  await bookRem.addTag(bookTag);
-  doLog(`Rem tagged as Book for "${title}" (${bookRem._id})`);
+  // Idempotent: adding an already-present powerup is a no-op
+  await bookRem.addPowerup(BOOK_POWERUP_CODE);
+
+  if (bookId) {
+    await bookRem.setPowerupProperty(BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS.BOOK_ID, [bookId]);
+  }
 
   if (author) {
-    const authorRem = await getOrCreateAuthorRem(plugin, author, parentId, authorTag);
+    const authorRem = await getOrCreateAuthorRem(plugin, author, authorsContainerId, authorTag);
     const authorRichText = await plugin.richText.rem(authorRem).value();
-    await bookRem.setTagPropertyValue(authorsPropertyId, authorRichText);
-    doLog(`Author "${author}" linked to "${title}"`);
+    await bookRem.setPowerupProperty(
+      BOOK_POWERUP_CODE,
+      BOOK_POWERUP_SLOTS.AUTHORS,
+      authorRichText
+    );
+  }
+
+  if (dateRead) {
+    await bookRem.setPowerupProperty(
+      BOOK_POWERUP_CODE,
+      BOOK_POWERUP_SLOTS.DATE_READ,
+      formatDateProperty(dateRead)
+    );
+  }
+
+  if (dateAddedToShelf) {
+    await bookRem.setPowerupProperty(
+      BOOK_POWERUP_CODE,
+      BOOK_POWERUP_SLOTS.DATE_ADDED,
+      formatDateProperty(dateAddedToShelf)
+    );
   }
 
   doLog(`Rem populated for "${title}" (${bookRem._id})`);
-  return bookRem;
+  return { created };
 }
 
 function formatSyncResult(result: SyncResult): string {
@@ -190,22 +235,30 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
   doLog(`Parsed ${books.length} book(s) from feed (${skipped} skipped)`);
 
   const parentRem = await getOrCreateParentRem(plugin);
+  const booksContainer = await getOrCreateChildRem(plugin, BOOKS_CONTAINER_NAME, parentRem._id);
+  const authorsContainer = await getOrCreateChildRem(
+    plugin,
+    AUTHORS_CONTAINER_NAME,
+    parentRem._id
+  );
+  const authorTag = await getOrCreateChildRem(plugin, AUTHOR_TAG_NAME, parentRem._id);
 
-  const bookTag = await getOrCreateTagRem(plugin, BOOK_TAG_NAME, parentRem._id);
-  const authorTag = await getOrCreateTagRem(plugin, AUTHOR_TAG_NAME, parentRem._id);
-
-  const authorsProperty = await getOrCreateAuthorPropertyRem(plugin, bookTag);
+  const context: SyncContext = {
+    plugin,
+    booksContainerId: booksContainer._id,
+    authorsContainerId: authorsContainer._id,
+    authorTag,
+    bookIndex: await buildBookIndex(plugin),
+  };
 
   let imported = 0;
   for (const book of books) {
-    const rem = await createRemForBook(book, {
-      plugin,
-      parentId: parentRem._id,
-      bookTag,
-      authorTag,
-      authorsPropertyId: authorsProperty._id,
-    });
-    if (rem) imported++;
+    try {
+      const { created } = await upsertBookRem(book, context);
+      if (created) imported++;
+    } catch (error) {
+      doError(`Failed to sync "${book.title}": ${error}`);
+    }
   }
 
   await plugin.storage.setSynced(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
