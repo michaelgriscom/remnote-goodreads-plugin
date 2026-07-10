@@ -41,16 +41,16 @@ In development mode, webpack proxies `/goodreads/*` requests to `https://www.goo
 
 ### Data Model
 
-Imported data lives under a "Goodreads Import" document containing "Books" and "Authors" container Rems.
+Imported data lives under a "Goodreads Import" document containing "Books" and "Authors" container Rems plus an "Author" tag Rem. "Books" contains "Currently Reading" and "Completed" group Rems; each book is parented under one based on whether it has a read date, and `setParent` on every sync moves books between groups when their read state changes.
 
-Each book Rem is created under "Books" and tagged with the `goodreadsBook` powerup (registered in [src/widgets/index.tsx](src/widgets/index.tsx)), which has these property slots:
+Each book Rem is tagged with the `goodreadsBook` powerup (registered in [src/widgets/index.tsx](src/widgets/index.tsx)), which has these property slots:
 - `bookId` - hidden, programmatic-only; stores the Goodreads book id
 - `authors` - multi-select relation; holds Rem references to author Rems
-- `dateRead` / `dateAdded` - date properties holding references to daily documents, so books appear as backlinks on those dates
+- `dateRead` / `dateAdded` - date properties holding references to daily documents when permissions allow (plain-text date fallback otherwise)
 
-Author Rems are created under "Authors", tagged with the `goodreadsAuthor` powerup, and deduplicated by name, so multiple books by the same author share a single author Rem. Powerups are used (rather than plain tag Rems) so there are no bare tag rems in the user's document tree to accidentally delete.
+Author Rems are created under "Authors", tagged with the "Author" tag Rem, and deduplicated by name, so multiple books by the same author share a single author Rem. A plain tag Rem is used (rather than a powerup) because RemNote's multi-select property configuration can only select regular tag rems as its source. Tagging is self-healing: if the "Author" tag rem is deleted, the next sync recreates it and re-tags existing authors.
 
-The manifest requests the `All` scope because powerup Rems and daily documents live outside the "Goodreads Import" subtree.
+The manifest requests the "Goodreads Import" subtree plus a `Powerup` scope for `goodreadsBook`; daily-document date links require broader access and degrade to plain text without it.
 
 ### Deduplication / Upsert
 

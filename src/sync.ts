@@ -6,8 +6,10 @@ import { fetchRss } from './fetchRss';
 const PARENT_REM_NAME = 'Goodreads Import';
 const BOOKS_CONTAINER_NAME = 'Books';
 const AUTHORS_CONTAINER_NAME = 'Authors';
+const AUTHOR_TAG_NAME = 'Author';
+const CURRENTLY_READING_NAME = 'Currently Reading';
+const COMPLETED_NAME = 'Completed';
 
-export const AUTHOR_POWERUP_CODE = 'goodreadsAuthor';
 export const BOOK_POWERUP_CODE = 'goodreadsBook';
 export const BOOK_POWERUP_SLOTS = {
   BOOK_ID: 'bookId',
@@ -68,14 +70,25 @@ async function getOrCreateChildRem(
   return childRem;
 }
 
+async function ensureTagged(rem: PluginRem, tag: PluginRem): Promise<void> {
+  const existingTags = await rem.getTagRems();
+  if (!existingTags.some((t) => t._id === tag._id)) {
+    await rem.addTag(tag);
+  }
+}
+
 async function getOrCreateAuthorRem(
   plugin: RNPlugin,
   authorName: string,
-  authorsContainerId: string
+  authorsContainerId: string,
+  authorTag: PluginRem
 ): Promise<PluginRem> {
   const existingRem = await plugin.rem.findByName([authorName], authorsContainerId);
   if (existingRem) {
     doLog(`Author Rem "${authorName}" found (${existingRem._id})`);
+    // Self-healing: if the Author tag rem was deleted and recreated,
+    // re-tag existing authors on the next sync
+    await ensureTagged(existingRem, authorTag);
     return existingRem;
   }
 
@@ -86,7 +99,7 @@ async function getOrCreateAuthorRem(
   await authorRem.setText([authorName]);
   await authorRem.setIsDocument(true);
   await authorRem.setParent(authorsContainerId);
-  await authorRem.addPowerup(AUTHOR_POWERUP_CODE);
+  await authorRem.addTag(authorTag);
   doLog(`Author Rem "${authorName}" created and tagged (${authorRem._id})`);
   return authorRem;
 }
@@ -112,12 +125,17 @@ async function buildBookIndex(plugin: RNPlugin): Promise<Map<string, PluginRem>>
 /**
  * Build a date property value as a reference to the date's daily
  * document, so the book shows up as a backlink on that date. Falls
- * back to plain text if the daily document can't be created.
+ * back to plain text if the daily document can't be created or the
+ * plugin's permission scope doesn't cover daily documents.
  */
 async function dateProperty(plugin: RNPlugin, date: Date): Promise<RichTextInterface> {
-  const dailyDoc = await plugin.date.getDailyDoc(date);
-  if (dailyDoc) {
-    return await plugin.richText.rem(dailyDoc).value();
+  try {
+    const dailyDoc = await plugin.date.getDailyDoc(date);
+    if (dailyDoc) {
+      return await plugin.richText.rem(dailyDoc).value();
+    }
+  } catch (error) {
+    doLog(`Could not link daily document for date, storing as text: ${error}`);
   }
   return [date.toISOString().slice(0, 10)];
 }
@@ -125,29 +143,40 @@ async function dateProperty(plugin: RNPlugin, date: Date): Promise<RichTextInter
 interface SyncContext {
   plugin: RNPlugin;
   booksContainerId: string;
+  currentlyReadingId: string;
+  completedId: string;
   authorsContainerId: string;
+  authorTag: PluginRem;
   bookIndex: Map<string, PluginRem>;
 }
 
 async function findExistingBookRem(
   book: GoodreadsBook,
-  { plugin, booksContainerId, bookIndex }: SyncContext
+  { plugin, booksContainerId, currentlyReadingId, completedId, bookIndex }: SyncContext
 ): Promise<PluginRem | undefined> {
   if (book.bookId && bookIndex.has(book.bookId)) {
     return bookIndex.get(book.bookId);
   }
   // Fall back to title matching for rems imported before the
   // Goodreads ID was captured (or feed items without one)
-  const byTitle = await plugin.rem.findByName([book.title], booksContainerId);
-  return byTitle ?? undefined;
+  for (const parentId of [currentlyReadingId, completedId, booksContainerId]) {
+    const byTitle = await plugin.rem.findByName([book.title], parentId);
+    if (byTitle) return byTitle;
+  }
+  return undefined;
 }
 
 async function upsertBookRem(
   book: GoodreadsBook,
   context: SyncContext
 ): Promise<{ created: boolean }> {
-  const { plugin, booksContainerId, authorsContainerId } = context;
+  const { plugin, currentlyReadingId, completedId, authorsContainerId, authorTag } = context;
   const { bookId, title, author, dateRead, dateAddedToShelf } = book;
+
+  // A book with a read date is completed; one without is in progress.
+  // setParent also moves existing books between the groups when their
+  // read state changes on Goodreads.
+  const statusParentId = dateRead ? completedId : currentlyReadingId;
 
   let bookRem = await findExistingBookRem(book, context);
   const created = !bookRem;
@@ -160,11 +189,11 @@ async function upsertBookRem(
     }
     await newRem.setText([title]);
     await newRem.setIsDocument(true);
-    await newRem.setParent(booksContainerId);
     bookRem = newRem;
   } else {
     doLog(`Rem for "${title}" exists (${bookRem._id}), updating`);
   }
+  await bookRem.setParent(statusParentId);
 
   // Idempotent: adding an already-present powerup is a no-op
   await bookRem.addPowerup(BOOK_POWERUP_CODE);
@@ -174,7 +203,7 @@ async function upsertBookRem(
   }
 
   if (author) {
-    const authorRem = await getOrCreateAuthorRem(plugin, author, authorsContainerId);
+    const authorRem = await getOrCreateAuthorRem(plugin, author, authorsContainerId, authorTag);
     const authorRichText = await plugin.richText.rem(authorRem).value();
     await bookRem.setPowerupProperty(
       BOOK_POWERUP_CODE,
@@ -243,16 +272,26 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
 
   const parentRem = await getOrCreateParentRem(plugin);
   const booksContainer = await getOrCreateChildRem(plugin, BOOKS_CONTAINER_NAME, parentRem._id);
+  const currentlyReading = await getOrCreateChildRem(
+    plugin,
+    CURRENTLY_READING_NAME,
+    booksContainer._id
+  );
+  const completed = await getOrCreateChildRem(plugin, COMPLETED_NAME, booksContainer._id);
   const authorsContainer = await getOrCreateChildRem(
     plugin,
     AUTHORS_CONTAINER_NAME,
     parentRem._id
   );
+  const authorTag = await getOrCreateChildRem(plugin, AUTHOR_TAG_NAME, parentRem._id);
 
   const context: SyncContext = {
     plugin,
     booksContainerId: booksContainer._id,
+    currentlyReadingId: currentlyReading._id,
+    completedId: completed._id,
     authorsContainerId: authorsContainer._id,
+    authorTag,
     bookIndex: await buildBookIndex(plugin),
   };
 

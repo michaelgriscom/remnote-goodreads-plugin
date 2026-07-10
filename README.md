@@ -22,8 +22,11 @@ Optional settings:
 ### Use the plugin
 
 Books are imported under a "Goodreads Import" document, organized into
-"Books" and "Authors". Each book is tagged with the "Goodreads Book"
-powerup, which provides Author(s), Date Read, and Date Added properties.
+"Books" and "Authors". Within "Books", titles are grouped under
+"Currently Reading" or "Completed" depending on whether they have a
+read date, and move between the groups as your shelf changes. Each book
+is tagged with the "Goodreads Book" powerup, which provides Author(s),
+Date Read, and Date Added properties.
 
 To sync manually, either:
 - Open the command palette and run the "Fetch Books from Goodreads Shelf" command, or
