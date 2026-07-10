@@ -2,7 +2,7 @@
   "author": "michaelgriscom",
   "name": "Goodreads Sync",
   "description": "Sync a Goodreads shelf to RemNote",
-  "enableOnMobile": true,
+  "enableOnMobile": false,
   "id": "michaelgriscom-goodreads",
   "repoUrl": "https://github.com/michaelgriscom/remnote-goodreads-plugin",
   "changelogUrl": "https://github.com/michaelgriscom/remnote-goodreads-plugin/blob/main/CHANGELOG.md",
