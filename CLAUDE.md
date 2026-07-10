@@ -49,9 +49,9 @@ Each book Rem is tagged with the `goodreadsBook` powerup (registered in [src/wid
 
 The parser still extracts read/added dates (the read date drives section placement) but they are not written as properties.
 
-The "Author" section Rem doubles as the tag for author Rems: authors are parented under it, tagged with it, and deduplicated by name, so multiple books by the same author share a single author Rem. A plain rem is used as the tag (rather than a powerup) because RemNote's multi-select property configuration can only select regular tag rems as its source. Tagging is self-healing on every sync.
+The "Author" section Rem doubles as the tag for author Rems: authors are parented under it, tagged with it, and deduplicated by feed name, so multiple books by the same author share a single author Rem. A plain rem is used as the tag (rather than a powerup) because RemNote's multi-select property configuration can only select regular tag rems as its source. Tagging is self-healing on every sync.
 
-Section and author lookups scan the parent's children by text (`findChildByText`) rather than using `findByName`, which proved unreliable and produced duplicate sections. Book identity is tracked in a synced-storage `bookId → remId` map (`STORAGE_KEYS.BOOK_REM_MAP`); enumerating `goodreadsBook`-tagged rems is the fallback, then title matching.
+Section lookups scan the parent's children by text (`findChildByText`) rather than using `findByName`, which proved unreliable and produced duplicate sections. Book identity is tracked in a synced-storage `bookId → remId` map (`STORAGE_KEYS.BOOK_REM_MAP`); enumerating `goodreadsBook`-tagged rems is the fallback, then title matching. Author identity is tracked the same way, keyed by the feed's author name (`STORAGE_KEYS.AUTHOR_REM_MAP`), so users can rename author rems without causing re-imports — sync never rewrites an existing rem's text.
 
 The manifest requests the `All` scope (`ReadCreateModify`) — the same scope used by comparable sync plugins (remnote-readwise, remnote-raindrop-plugin) — because powerup rems, slot configuration, and daily documents all live outside any single subtree scope.
 

@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
   SYNC_STATUS: 'goodreads-sync_sync-status',
   SYNC_RESULT: 'goodreads-sync_sync-result',
   BOOK_REM_MAP: 'goodreads-sync_book-rem-map',
+  AUTHOR_REM_MAP: 'goodreads-sync_author-rem-map',
 };
 
 export interface SyncResult {
@@ -118,16 +119,31 @@ async function ensureTagged(rem: PluginRem, tag: PluginRem): Promise<void> {
 /**
  * The "Author" section rem doubles as the tag for author rems, so the
  * Author(s) multi-select property can use it as its option source.
+ *
+ * Identity is the author name as it appears in the feed, resolved
+ * through a persisted map to the rem id — so renaming an author rem
+ * in RemNote does not cause a re-import (its text is never rewritten).
  */
 async function getOrCreateAuthorRem(
   plugin: RNPlugin,
   authorName: string,
-  authorSection: PluginRem
+  authorSection: PluginRem,
+  authorRemMap: Record<string, string>
 ): Promise<PluginRem> {
+  const mappedRemId = authorRemMap[authorName];
+  if (mappedRemId) {
+    const mappedRem = await plugin.rem.findOne(mappedRemId);
+    if (mappedRem) {
+      await ensureTagged(mappedRem, authorSection);
+      return mappedRem;
+    }
+  }
+
   const existingRem = await findChildByText(plugin, authorSection, authorName);
   if (existingRem) {
     doLog(`Author Rem "${authorName}" found (${existingRem._id})`);
     await ensureTagged(existingRem, authorSection);
+    authorRemMap[authorName] = existingRem._id;
     return existingRem;
   }
 
@@ -139,20 +155,25 @@ async function getOrCreateAuthorRem(
   await authorRem.setIsDocument(true);
   await authorRem.setParent(authorSection._id);
   await authorRem.addTag(authorSection);
+  authorRemMap[authorName] = authorRem._id;
   doLog(`Author Rem "${authorName}" created and tagged (${authorRem._id})`);
   return authorRem;
 }
 
 /**
- * bookId → remId map persisted in synced storage. This is the primary
- * dedup mechanism; enumerating powerup-tagged rems is the fallback.
+ * Source-identity → remId maps persisted in synced storage. These are
+ * the primary dedup mechanism; text matching is the fallback.
  */
-async function getBookRemMap(plugin: RNPlugin): Promise<Record<string, string>> {
-  return (await plugin.storage.getSynced<Record<string, string>>(STORAGE_KEYS.BOOK_REM_MAP)) || {};
+async function getRemMap(plugin: RNPlugin, storageKey: string): Promise<Record<string, string>> {
+  return (await plugin.storage.getSynced<Record<string, string>>(storageKey)) || {};
 }
 
-async function saveBookRemMap(plugin: RNPlugin, map: Record<string, string>): Promise<void> {
-  await plugin.storage.setSynced(STORAGE_KEYS.BOOK_REM_MAP, map);
+async function saveRemMap(
+  plugin: RNPlugin,
+  storageKey: string,
+  map: Record<string, string>
+): Promise<void> {
+  await plugin.storage.setSynced(storageKey, map);
 }
 
 /**
@@ -183,6 +204,7 @@ interface SyncContext {
   completed: PluginRem;
   authorSection: PluginRem;
   bookRemMap: Record<string, string>;
+  authorRemMap: Record<string, string>;
   bookIndex: Map<string, PluginRem>;
 }
 
@@ -212,7 +234,7 @@ async function upsertBookRem(
   book: GoodreadsBook,
   context: SyncContext
 ): Promise<{ created: boolean }> {
-  const { plugin, currentlyReading, completed, authorSection, bookRemMap } = context;
+  const { plugin, currentlyReading, completed, authorSection, bookRemMap, authorRemMap } = context;
   const { bookId, title, author, dateRead } = book;
 
   // A book with a read date is completed; one without is in progress
@@ -249,7 +271,7 @@ async function upsertBookRem(
   }
 
   if (author) {
-    const authorRem = await getOrCreateAuthorRem(plugin, author, authorSection);
+    const authorRem = await getOrCreateAuthorRem(plugin, author, authorSection, authorRemMap);
     const authorRichText = await plugin.richText.rem(authorRem).value();
     await bookRem.setPowerupProperty(
       BOOK_POWERUP_CODE,
@@ -316,7 +338,8 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
     currentlyReading,
     completed,
     authorSection,
-    bookRemMap: await getBookRemMap(plugin),
+    bookRemMap: await getRemMap(plugin, STORAGE_KEYS.BOOK_REM_MAP),
+    authorRemMap: await getRemMap(plugin, STORAGE_KEYS.AUTHOR_REM_MAP),
     bookIndex: await buildBookIndex(plugin),
   };
 
@@ -348,7 +371,8 @@ export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
     }
   }
 
-  await saveBookRemMap(plugin, context.bookRemMap);
+  await saveRemMap(plugin, STORAGE_KEYS.BOOK_REM_MAP, context.bookRemMap);
+  await saveRemMap(plugin, STORAGE_KEYS.AUTHOR_REM_MAP, context.authorRemMap);
   await plugin.storage.setSynced(STORAGE_KEYS.LAST_SYNC_TIME, new Date().toISOString());
 
   return {
