@@ -5,34 +5,26 @@ import {
 } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../index.css';
-import { doError, doLog } from '../logging';
-import { STORAGE_KEYS, performSync } from '../sync';
+import { doLog } from '../logging';
+import { runSyncWithStatus } from '../sync';
 
 const DEFAULT_SYNC_INTERVAL_MINUTES = 30;
 
 let syncIntervalId: ReturnType<typeof setInterval> | null = null;
 
 async function fetchGoodreads(plugin: ReactRNPlugin) {
-  try {
-    await plugin.storage.setSession(STORAGE_KEYS.SYNC_STATUS, 'syncing');
-    await plugin.storage.setSession(STORAGE_KEYS.SYNC_RESULT, '');
-    const result = await performSync(plugin);
-    await plugin.storage.setSession(
-      STORAGE_KEYS.SYNC_RESULT,
-      `Imported ${result.imported} new book(s) (${result.existing} already existed).`
-    );
-    await plugin.storage.setSession(STORAGE_KEYS.SYNC_STATUS, 'idle');
-    if (result.imported > 0) {
-      await plugin.app.toast(
-        `Goodreads sync complete. Found ${result.imported} new book(s) (${result.existing} existing)`
-      );
-    }
-  } catch (error) {
-    doError(`Error fetching Goodreads shelf: ${error}`);
-    const message = error instanceof Error ? error.message : String(error);
-    await plugin.storage.setSession(STORAGE_KEYS.SYNC_RESULT, `Sync failed: ${message}`);
-    await plugin.storage.setSession(STORAGE_KEYS.SYNC_STATUS, 'error');
+  const result = await runSyncWithStatus(plugin);
+  if (!result) {
     await plugin.app.toast('Error syncing Goodreads, check the console for additional details.');
+    return;
+  }
+  if (result.imported > 0) {
+    await plugin.app.toast(
+      `Goodreads sync complete. Found ${result.imported} new book(s) (${result.existing} existing)`
+    );
+  }
+  if (result.skipped > 0) {
+    await plugin.app.toast(`Goodreads sync: ${result.skipped} feed item(s) could not be parsed.`);
   }
 }
 

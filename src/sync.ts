@@ -151,6 +151,36 @@ async function createRemForBook(
   return bookRem;
 }
 
+function formatSyncResult(result: SyncResult): string {
+  let message = `Imported ${result.imported} new book(s) (${result.existing} already existed).`;
+  if (result.skipped > 0) {
+    message += ` ${result.skipped} feed item(s) could not be parsed.`;
+  }
+  return message;
+}
+
+/**
+ * Runs a sync while reflecting its progress and outcome in the
+ * session-storage status keys the sidebar widget renders from.
+ * Returns the result, or undefined if the sync failed.
+ */
+export async function runSyncWithStatus(plugin: RNPlugin): Promise<SyncResult | undefined> {
+  try {
+    await plugin.storage.setSession(STORAGE_KEYS.SYNC_STATUS, 'syncing');
+    await plugin.storage.setSession(STORAGE_KEYS.SYNC_RESULT, '');
+    const result = await performSync(plugin);
+    await plugin.storage.setSession(STORAGE_KEYS.SYNC_RESULT, formatSyncResult(result));
+    await plugin.storage.setSession(STORAGE_KEYS.SYNC_STATUS, 'idle');
+    return result;
+  } catch (error) {
+    doError(`Error syncing Goodreads shelf: ${error}`);
+    const message = error instanceof Error ? error.message : String(error);
+    await plugin.storage.setSession(STORAGE_KEYS.SYNC_RESULT, `Sync failed: ${message}`);
+    await plugin.storage.setSession(STORAGE_KEYS.SYNC_STATUS, 'error');
+    return undefined;
+  }
+}
+
 export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
   const feedUrl: string = await plugin.settings.getSetting('feedUrl');
   const xmlDoc = await fetchRss(feedUrl);

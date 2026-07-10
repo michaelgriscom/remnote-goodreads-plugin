@@ -7,7 +7,7 @@ import {
 } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../index.css';
-import { STORAGE_KEYS, performSync } from '../sync';
+import { STORAGE_KEYS, runSyncWithStatus } from '../sync';
 
 function formatLastSync(isoString: string | null): string {
   if (!isoString) return 'Never';
@@ -24,29 +24,11 @@ const GoodreadsWidget = () => {
   const hasFeedUrl = !!feedUrl && feedUrl.trim().length > 0;
 
   const [lastSyncTime] = useSyncedStorageState<string | null>(STORAGE_KEYS.LAST_SYNC_TIME, null);
-  const [syncStatus, setSyncStatus] = useSessionStorageState<string>(
-    STORAGE_KEYS.SYNC_STATUS,
-    'idle'
-  );
-  const [syncResult, setSyncResult] = useSessionStorageState<string>(
-    STORAGE_KEYS.SYNC_RESULT,
-    ''
-  );
+  const [syncStatus] = useSessionStorageState<string>(STORAGE_KEYS.SYNC_STATUS, 'idle');
+  const [syncResult] = useSessionStorageState<string>(STORAGE_KEYS.SYNC_RESULT, '');
 
   const handleManualSync = async () => {
-    setSyncStatus('syncing');
-    setSyncResult('');
-    try {
-      const result = await performSync(plugin);
-      setSyncResult(
-        `Imported ${result.imported} new book(s) (${result.existing} already existed).`
-      );
-      setSyncStatus('idle');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setSyncResult(`Sync failed: ${message}`);
-      setSyncStatus('error');
-    }
+    await runSyncWithStatus(plugin);
   };
 
   return (
