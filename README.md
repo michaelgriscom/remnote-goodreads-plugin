@@ -41,18 +41,19 @@ syncs periodically in the background while RemNote is open.
 
 Browsers only let a website read data from another website if the second
 site explicitly allows it (a security rule called CORS), and Goodreads
-does not allow it. As a result, syncing directly can fail, especially in
-the RemNote mobile and web apps. If syncing does nothing or reports a
-network error, enable **Fetch through a relay (CORS proxy)** in the
-plugin settings. This routes the request through a public relay service
-that fetches the feed on your behalf and passes it back. The relay
-service is configurable; the default is [AllOrigins](https://allorigins.win).
+does not allow it. Syncing therefore fails in the RemNote web and mobile
+apps (the desktop app is unaffected). To sync there, enable **Fetch
+through a relay (CORS proxy)** in the plugin settings. This routes the
+request through a public relay service that fetches the feed on your
+behalf and passes it back. The relay service is configurable; the
+default is [AllOrigins](https://allorigins.win).
 
 ## Data Privacy
 
 Whenever a sync is performed, a request is made to the RSS feed that you enter. Please be sure the URL you enter into the text box is correct.
 
-If you enable the relay option, your feed URL — including the private
-key embedded in it, which allows reading your shelves — is sent through
-the configured relay service. Don't enable it if you're not comfortable
-with that, or point the setting at a relay you run yourself.
+If you enable the relay option, your feed URL — including its key — is
+sent through the configured relay service. The main risk is that a relay
+operator could log and reuse the key, for example to request your feed
+repeatedly until Goodreads rate-limits or blocks it. To avoid relying on
+a third party, point the setting at a relay you run yourself.

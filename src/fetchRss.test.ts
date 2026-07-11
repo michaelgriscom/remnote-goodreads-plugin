@@ -67,10 +67,10 @@ describe('fetchRss', () => {
     const fetchMock = mockFetchResponse('<rss><channel></channel></rss>');
     vi.stubGlobal('fetch', fetchMock);
 
-    await fetchRss(FEED_URL, { proxyTemplate: 'https://api.allorigins.win/raw?url={url}' });
+    await fetchRss(FEED_URL, { proxyTemplate: 'https://foo-cors-proxy.test/raw?url={url}' });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(FEED_URL)}`,
+      `https://foo-cors-proxy.test/raw?url=${encodeURIComponent(FEED_URL)}`,
       expect.anything()
     );
   });
@@ -86,14 +86,14 @@ describe('buildProxyUrl', () => {
   const feedUrl = new URL(FEED_URL);
 
   it('replaces the {url} placeholder with the encoded feed URL', () => {
-    expect(buildProxyUrl('https://api.allorigins.win/raw?url={url}', feedUrl)).toBe(
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(FEED_URL)}`
+    expect(buildProxyUrl('https://foo-cors-proxy.test/raw?url={url}', feedUrl)).toBe(
+      `https://foo-cors-proxy.test/raw?url=${encodeURIComponent(FEED_URL)}`
     );
   });
 
   it('appends the feed URL when the template has no placeholder', () => {
-    expect(buildProxyUrl('https://cors-anywhere.com/', feedUrl)).toBe(
-      `https://cors-anywhere.com/${FEED_URL}`
+    expect(buildProxyUrl('https://foo-cors-proxy.test/', feedUrl)).toBe(
+      `https://foo-cors-proxy.test/${FEED_URL}`
     );
   });
 

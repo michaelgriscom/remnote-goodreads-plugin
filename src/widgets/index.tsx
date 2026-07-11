@@ -96,7 +96,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'useCorsProxy',
     title: 'Fetch through a relay (CORS proxy)',
     description:
-      "Browser security rules (CORS) often block apps like RemNote from reading other websites directly, so syncing can fail, especially on mobile and web. Turning this on routes feed requests through a public relay service instead. Note: your feed URL, including its private key, is sent through that service.",
+      'Required for syncing on web and mobile, where Goodreads cannot be fetched directly. Has no effect on the desktop app. Your feed URL, including its key, is sent through the relay service configured below.',
     defaultValue: false,
   });
 
@@ -104,7 +104,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'corsProxyTemplate',
     title: 'Relay (CORS proxy) URL',
     description:
-      'Used when the relay is enabled. {url} is replaced with your feed URL; without {url}, the feed URL is appended to the end.',
+      '{url} is replaced with the encoded feed URL; without {url}, the feed URL is appended.',
     defaultValue: 'https://api.allorigins.win/raw?url={url}',
   });
 

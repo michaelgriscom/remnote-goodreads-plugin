@@ -314,13 +314,36 @@ export async function runSyncWithStatus(plugin: RNPlugin): Promise<SyncResult | 
   }
 }
 
+/**
+ * The desktop app can fetch Goodreads directly, so the relay is only
+ * ever used on web and mobile, where direct cross-site fetches fail.
+ */
+async function isDesktopApp(plugin: RNPlugin): Promise<boolean> {
+  const platform = await plugin.app.getPlatform();
+  const os = await plugin.app.getOperatingSystem();
+  return platform === 'app' && os !== 'ios' && os !== 'android';
+}
+
 export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
   const feedUrl: string = await plugin.settings.getSetting('feedUrl');
   const useCorsProxy: boolean = await plugin.settings.getSetting('useCorsProxy');
   const corsProxyTemplate: string = await plugin.settings.getSetting('corsProxyTemplate');
-  const xmlDoc = await fetchRss(feedUrl, {
-    proxyTemplate: useCorsProxy ? corsProxyTemplate : undefined,
-  });
+  const needsRelay = !(await isDesktopApp(plugin));
+
+  let xmlDoc: Document;
+  try {
+    xmlDoc = await fetchRss(feedUrl, {
+      proxyTemplate: needsRelay && useCorsProxy ? corsProxyTemplate : undefined,
+    });
+  } catch (error) {
+    if (needsRelay && !useCorsProxy) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${message} — on web and mobile, Goodreads cannot be fetched directly; enable "Fetch through a relay (CORS proxy)" in the plugin settings`
+      );
+    }
+    throw error;
+  }
 
   const cleanupTitle: boolean = await plugin.settings.getSetting('cleanupTitles');
   const { books, skipped } = parseBooks(xmlDoc, { cleanupTitle });
