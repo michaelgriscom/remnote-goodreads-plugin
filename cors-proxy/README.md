@@ -9,7 +9,10 @@ It only proxies `goodreads.com/review/list_rss/...` URLs, so it can't be
 abused as a general-purpose open proxy, and it edge-caches responses for
 10 minutes to keep request volume to Goodreads low.
 
-## Deploy
+The plugin's default relay URL points at the official instance of this
+worker. Deploy your own if you'd rather not route your feed through it.
+
+## Deploy your own
 
 Requires a free Cloudflare account. From this directory:
 
@@ -20,7 +23,14 @@ npm run deploy
 ```
 
 Wrangler prints the deployed URL, e.g.
-`https://goodreads-cors-proxy.<your-subdomain>.workers.dev`.
+`https://remnote-goodreads-plugin.<your-subdomain>.workers.dev`.
+
+Alternatively, connect the repository to
+[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)
+so pushes deploy automatically. When doing so, set the build's **root
+directory** to `/cors-proxy`, and make sure the Cloudflare service name
+matches `name` in [wrangler.toml](wrangler.toml) — builds fail when they
+disagree.
 
 ## Use with the plugin
 
@@ -30,7 +40,7 @@ In the plugin settings:
 2. Set **Relay (CORS proxy) URL** to:
 
 ```
-https://goodreads-cors-proxy.<your-subdomain>.workers.dev/?url={url}
+https://remnote-goodreads-plugin.<your-subdomain>.workers.dev/?url={url}
 ```
 
 ## Costs and limits
