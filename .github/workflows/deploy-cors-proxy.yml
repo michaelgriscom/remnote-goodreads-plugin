@@ -1,0 +1,34 @@
+name: Deploy CORS proxy
+
+# Deploys the Goodreads CORS relay worker (cors-proxy/) to Cloudflare.
+# Runs on demand, and on pushes to main that touch the worker.
+#
+# Requires two repository secrets:
+#   CLOUDFLARE_API_TOKEN  - a token with the "Edit Cloudflare Workers" permission
+#   CLOUDFLARE_ACCOUNT_ID - the account the worker is deployed under
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'cors-proxy/**'
+      - '.github/workflows/deploy-cors-proxy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cors-proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: cors-proxy/.nvmrc
+          cache: npm
+          cache-dependency-path: cors-proxy/package-lock.json
+      - run: npm ci
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
