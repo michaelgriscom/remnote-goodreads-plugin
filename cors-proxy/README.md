@@ -29,7 +29,7 @@ Alternatively, connect the repository to
 [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)
 so pushes deploy automatically. When doing so, set the build's **root
 directory** to `/cors-proxy`, and make sure the Cloudflare service name
-matches `name` in [wrangler.toml](wrangler.toml) — builds fail when they
+matches `name` in [wrangler.jsonc](wrangler.jsonc) — builds fail when they
 disagree.
 
 ## Use with the plugin
