@@ -1,5 +1,0 @@
-# The worker name matches the Cloudflare service connected to this
-# repository via Workers Builds; a mismatch makes builds fail.
-name = "remnote-goodreads-plugin"
-main = "src/worker.ts"
-compatibility_date = "2026-07-01"
