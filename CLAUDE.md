@@ -37,7 +37,9 @@ The sync process follows this pipeline:
 
 ### Proxy Configuration
 
-In development mode, webpack proxies `/goodreads/*` requests to `https://www.goodreads.com` to work around CORS restrictions. See [webpack.config.js](webpack.config.js). `fetchRss` always fetches the relative `/goodreads/...` path, so syncing only works where that path is proxied (the webpack dev server).
+In development mode, webpack proxies `/goodreads/*` requests to `https://www.goodreads.com` to work around CORS restrictions. See [webpack.config.js](webpack.config.js). By default `fetchRss` fetches the relative `/goodreads/...` path, so syncing only works where that path is proxied (the webpack dev server).
+
+For installed environments (mobile/web especially), the `useCorsProxy` setting routes the fetch through a user-configurable relay instead: `corsProxyTemplate` is a URL template where `{url}` is replaced with the encoded feed URL (default: allorigins `/raw`), or the feed URL is appended if there is no placeholder (cors-anywhere style). Privacy tradeoff (feed URL contains the user's private key) is documented in the README.
 
 ### Data Model
 

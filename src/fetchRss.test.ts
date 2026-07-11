@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchRss } from './fetchRss';
+import { buildProxyUrl, fetchRss } from './fetchRss';
 
 const FEED_URL = 'https://www.goodreads.com/review/list_rss/12345?key=abc&shelf=read';
 
@@ -61,5 +61,47 @@ describe('fetchRss', () => {
     const doc = await fetchRss(FEED_URL);
 
     expect(doc.getElementsByTagName('item')).toHaveLength(1);
+  });
+
+  it('fetches through the proxy template when provided', async () => {
+    const fetchMock = mockFetchResponse('<rss><channel></channel></rss>');
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchRss(FEED_URL, { proxyTemplate: 'https://api.allorigins.win/raw?url={url}' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(FEED_URL)}`,
+      expect.anything()
+    );
+  });
+
+  it('still validates the feed URL when a proxy is used', async () => {
+    await expect(
+      fetchRss('https://example.com/feed', { proxyTemplate: 'https://proxy.test/{url}' })
+    ).rejects.toThrow('must be a Goodreads URL');
+  });
+});
+
+describe('buildProxyUrl', () => {
+  const feedUrl = new URL(FEED_URL);
+
+  it('replaces the {url} placeholder with the encoded feed URL', () => {
+    expect(buildProxyUrl('https://api.allorigins.win/raw?url={url}', feedUrl)).toBe(
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(FEED_URL)}`
+    );
+  });
+
+  it('appends the feed URL when the template has no placeholder', () => {
+    expect(buildProxyUrl('https://cors-anywhere.com/', feedUrl)).toBe(
+      `https://cors-anywhere.com/${FEED_URL}`
+    );
+  });
+
+  it('rejects an empty template', () => {
+    expect(() => buildProxyUrl('   ', feedUrl)).toThrow('empty');
+  });
+
+  it('rejects a template that produces an invalid URL', () => {
+    expect(() => buildProxyUrl('not a url {url}', feedUrl)).toThrow('valid URL');
   });
 });

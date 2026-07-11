@@ -92,6 +92,22 @@ async function onActivate(plugin: ReactRNPlugin) {
     defaultValue: true,
   });
 
+  await plugin.settings.registerBooleanSetting({
+    id: 'useCorsProxy',
+    title: 'Fetch through a relay (CORS proxy)',
+    description:
+      "Browser security rules (CORS) often block apps like RemNote from reading other websites directly, so syncing can fail, especially on mobile and web. Turning this on routes feed requests through a public relay service instead. Note: your feed URL, including its private key, is sent through that service.",
+    defaultValue: false,
+  });
+
+  await plugin.settings.registerStringSetting({
+    id: 'corsProxyTemplate',
+    title: 'Relay (CORS proxy) URL',
+    description:
+      'Used when the relay is enabled. {url} is replaced with your feed URL; without {url}, the feed URL is appended to the end.',
+    defaultValue: 'https://api.allorigins.win/raw?url={url}',
+  });
+
   await plugin.settings.registerNumberSetting({
     id: SYNC_INTERVAL_SETTING_ID,
     title: 'Automatic sync interval (minutes)',

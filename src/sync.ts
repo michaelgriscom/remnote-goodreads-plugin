@@ -316,7 +316,11 @@ export async function runSyncWithStatus(plugin: RNPlugin): Promise<SyncResult | 
 
 export async function performSync(plugin: RNPlugin): Promise<SyncResult> {
   const feedUrl: string = await plugin.settings.getSetting('feedUrl');
-  const xmlDoc = await fetchRss(feedUrl);
+  const useCorsProxy: boolean = await plugin.settings.getSetting('useCorsProxy');
+  const corsProxyTemplate: string = await plugin.settings.getSetting('corsProxyTemplate');
+  const xmlDoc = await fetchRss(feedUrl, {
+    proxyTemplate: useCorsProxy ? corsProxyTemplate : undefined,
+  });
 
   const cleanupTitle: boolean = await plugin.settings.getSetting('cleanupTitles');
   const { books, skipped } = parseBooks(xmlDoc, { cleanupTitle });
