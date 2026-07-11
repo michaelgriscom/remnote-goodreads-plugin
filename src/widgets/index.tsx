@@ -105,7 +105,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     title: 'Relay (CORS proxy) URL',
     description:
       '{url} is replaced with the encoded feed URL; without {url}, the feed URL is appended.',
-    defaultValue: 'https://api.allorigins.win/raw?url={url}',
+    defaultValue: 'https://remnote-goodreads-plugin.js84fwxnvs.workers.dev/?url={url}',
   });
 
   await plugin.settings.registerNumberSetting({

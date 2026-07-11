@@ -46,7 +46,7 @@ apps (the desktop app is unaffected). To sync there, enable **Fetch
 through a relay (CORS proxy)** in the plugin settings. This routes the
 request through a public relay service that fetches the feed on your
 behalf and passes it back. The relay service is configurable; the
-default is [AllOrigins](https://allorigins.win).
+default is [a purpose-built service for this plugin](https://remnote-goodreads-plugin.js84fwxnvs.workers.dev/).
 
 ## Data Privacy
 
