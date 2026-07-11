@@ -56,4 +56,6 @@ If you enable the relay option, your feed URL — including its key — is
 sent through the configured relay service. The main risk is that a relay
 operator could log and reuse the key, for example to request your feed
 repeatedly until Goodreads rate-limits or blocks it. To avoid relying on
-a third party, point the setting at a relay you run yourself.
+a third party, you can run your own relay: this repository includes a
+ready-to-deploy Cloudflare Worker that only proxies Goodreads feeds —
+see [cors-proxy/README.md](cors-proxy/README.md).
