@@ -13,20 +13,20 @@ const ALLOWED_PATH_PREFIX = '/review/list_rss/';
  * request volume to Goodreads low. */
 const CACHE_TTL_SECONDS = 600;
 
-const CORS_HEADERS = {
+const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': '*',
 };
 
-function errorResponse(status, message) {
+function errorResponse(status: number, message: string): Response {
   return new Response(message, {
     status,
     headers: { ...CORS_HEADERS, 'Content-Type': 'text/plain' },
   });
 }
 
-export async function handleRequest(request) {
+export async function handleRequest(request: Request): Promise<Response> {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
@@ -39,7 +39,7 @@ export async function handleRequest(request) {
     return errorResponse(400, 'Missing "url" query parameter');
   }
 
-  let targetUrl;
+  let targetUrl: URL;
   try {
     targetUrl = new URL(target);
   } catch {
@@ -60,7 +60,7 @@ export async function handleRequest(request) {
     headers: { 'User-Agent': 'remnote-goodreads-plugin-cors-proxy' },
     // Cloudflare-specific cache hint; ignored elsewhere
     cf: { cacheTtl: CACHE_TTL_SECONDS, cacheEverything: true },
-  });
+  } as RequestInit);
 
   const headers = new Headers(CORS_HEADERS);
   headers.set(
@@ -71,5 +71,5 @@ export async function handleRequest(request) {
 }
 
 export default {
-  fetch: (request) => handleRequest(request),
+  fetch: (request: Request): Promise<Response> => handleRequest(request),
 };
