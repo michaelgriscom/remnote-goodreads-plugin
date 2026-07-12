@@ -25,21 +25,12 @@ npm run deploy
 Wrangler prints the deployed URL, e.g.
 `https://remnote-goodreads-plugin.<your-subdomain>.workers.dev`.
 
-### Deploy from CI
-
-Two options for deploying on push instead of by hand:
-
-- **GitHub Actions** (`.github/workflows/deploy-cors-proxy.yml`): runs
-  `wrangler deploy` on demand and on pushes to `main` that touch
-  `cors-proxy/`. Add two repository secrets — `CLOUDFLARE_API_TOKEN` (a
-  token with the "Edit Cloudflare Workers" permission) and
-  `CLOUDFLARE_ACCOUNT_ID`.
-- **Cloudflare [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)**:
-  connect the repository with **root directory** `/cors-proxy`, and make
-  sure the Cloudflare service name matches `name` in
-  [wrangler.jsonc](wrangler.jsonc). Create the service through the
-  repository-import flow rather than attaching Builds to a service that
-  was already deployed manually, which can fail to initialize.
+Alternatively, connect the repository to
+[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)
+so pushes deploy automatically. When doing so, set the build's **root
+directory** to `/cors-proxy`, and make sure the Cloudflare service name
+matches `name` in [wrangler.jsonc](wrangler.jsonc) — builds fail when they
+disagree.
 
 ## Use with the plugin
 
