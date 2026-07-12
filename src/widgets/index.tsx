@@ -96,7 +96,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'useCorsProxy',
     title: 'Fetch through a relay (CORS proxy)',
     description:
-      'Required for syncing on web and mobile, where Goodreads cannot be fetched directly. Has no effect on the desktop app. Your feed URL, including its key, is sent through the relay service configured below.',
+      'Required for syncing on web and mobile, where Goodreads cannot be fetched directly. Has no effect on the desktop app. Your feed URL is sent through the relay service configured below.',
     defaultValue: false,
   });
 
@@ -104,8 +104,8 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'corsProxyTemplate',
     title: 'Relay (CORS proxy) URL',
     description:
-      '{url} is replaced with the encoded feed URL; without {url}, the feed URL is appended.',
-    defaultValue: 'https://api.allorigins.win/raw?url={url}',
+      '{url} is replaced with the encoded feed URL.',
+    defaultValue: 'https://remnote-goodreads-plugin.js84fwxnvs.workers.dev/?url={url}',
   });
 
   await plugin.settings.registerNumberSetting({

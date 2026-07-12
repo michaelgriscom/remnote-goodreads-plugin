@@ -2,7 +2,7 @@
 
 Sync a Goodreads shelf to RemNote
 
-## Usage
+## Setup
 
 ### Get Goodreads RSS URL
 1. Open Goodreads on a desktop web browser
@@ -19,15 +19,13 @@ Optional settings:
 - **Simplify book titles** (on by default): omits subtitles, series, and edition info from imported titles
 - **Automatic sync interval (minutes)**: how often to sync automatically (default 30; set to 0 to disable)
 
-### Use the plugin
+### Using the plugin
 
 Books are imported under a "Goodreads Import" document, grouped under
 "Currently Reading" or "Completed" sections depending on whether they
 have a read date. Books move to "Completed" when they gain a read date
-or drop out of the feed (e.g. finishing a book removes it from a
-currently-reading shelf). Authors live under an "Author" section and
-are tagged with it. Each book is tagged with the "Goodreads Book"
-powerup, which provides an Author(s) property.
+or drop out of the feed (e.g. if you're syncing the
+currently-reading shelf). Authors live under an "Author" section which also functions as a tag on each book.
 
 To sync manually, either:
 - Open the command palette and run the "Fetch Books from Goodreads Shelf" command, or
@@ -46,14 +44,13 @@ apps (the desktop app is unaffected). To sync there, enable **Fetch
 through a relay (CORS proxy)** in the plugin settings. This routes the
 request through a public relay service that fetches the feed on your
 behalf and passes it back. The relay service is configurable; the
-default is [AllOrigins](https://allorigins.win).
+default is [a purpose-built service for this plugin](https://remnote-goodreads-plugin.js84fwxnvs.workers.dev/) that is open source inside [the same repository](https://github.com/michaelgriscom/remnote-goodreads-plugin/tree/main/cors-proxy).
 
 ## Data Privacy
 
-Whenever a sync is performed, a request is made to the RSS feed that you enter. Please be sure the URL you enter into the text box is correct.
+If you enable the relay option, your feed URL is
+sent through the configured relay service. This service could log the bookshelf you entered and the access `key` in the URL, allowing them to see your bookshelf and abuse the key.
 
-If you enable the relay option, your feed URL — including its key — is
-sent through the configured relay service. The main risk is that a relay
-operator could log and reuse the key, for example to request your feed
-repeatedly until Goodreads rate-limits or blocks it. To avoid relying on
-a third party, point the setting at a relay you run yourself.
+The default relay for the plugin is open source and does not do any of this, however you can reduce the amount of information sent to third parties. If your Goodreads profile is public, you can remove the `key` in the URL (for example, `https://www.goodreads.com/review/list_rss/12345?shelf=to-read`). You can also run your own relay; services such as Cloudflare allow this for free, and this repository includes a
+ready-to-deploy Cloudflare Worker that only proxies Goodreads feeds —
+see [cors-proxy/README.md](cors-proxy/README.md).

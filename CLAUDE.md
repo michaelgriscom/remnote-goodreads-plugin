@@ -78,6 +78,10 @@ This plugin uses `@remnote/plugin-sdk` (0.0.46) to interact with RemNote:
 - `plugin.event.addListener(AppEvents.SettingChanged, ...)` - React to setting changes
 - `plugin.app.registerCommand()` / `plugin.app.registerWidget()` / `plugin.app.toast()`
 
+## CORS Relay Worker
+
+[cors-proxy/](cors-proxy/) contains a self-hostable Cloudflare Worker relay ([cors-proxy/src/worker.ts](cors-proxy/src/worker.ts)) that only proxies Goodreads RSS URLs. It is intentionally isolated from the plugin: not part of the webpack build, the plugin zip, or release-please versioning (which is scoped to the root package). Its unit tests use plain `Request`/`Response` (with a `@vitest-environment node` pragma) so they run in the root `npm test` without extra dependencies; deployment uses wrangler from inside that directory.
+
 ## Key Files
 
 - [src/widgets/index.tsx](src/widgets/index.tsx) - Plugin entry point: registrations and periodic sync
