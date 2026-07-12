@@ -52,9 +52,8 @@ default is [AllOrigins](https://allorigins.win).
 
 Whenever a sync is performed, a request is made to the RSS feed that you enter. Please be sure the URL you enter into the text box is correct.
 
-If you enable the relay option, your feed URL is sent through the
-configured relay service. The private `key` in the URL is stripped before
-the request, so the relay only sees your public shelf address, not a
-credential it could reuse. (Feeds from private Goodreads profiles, which
-need the key, won't sync this way.) You can also point the setting at a
-relay you run yourself.
+If you enable the relay option, your feed URL — including its key — is
+sent through the configured relay service. The main risk is that a relay
+operator could log and reuse the key, for example to request your feed
+repeatedly until Goodreads rate-limits or blocks it. To avoid relying on
+a third party, point the setting at a relay you run yourself.

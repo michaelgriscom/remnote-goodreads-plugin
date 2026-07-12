@@ -49,11 +49,6 @@ export interface FetchRssOptions {
 
 export async function fetchRss(feedUrl: string, options: FetchRssOptions = {}): Promise<Document> {
     const url = validateGoodreadsUrl(feedUrl);
-    // Public shelves are readable without the per-user `key`, so drop it:
-    // it keeps the private key out of every request, including any that
-    // pass through a third-party relay. (Private profiles that require the
-    // key are the tradeoff.)
-    url.searchParams.delete('key');
     // Without a proxy, fetch the relative path handled by the webpack
     // dev-server proxy (see webpack.config.js)
     const requestUrl = options.proxyTemplate

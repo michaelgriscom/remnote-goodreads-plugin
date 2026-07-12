@@ -96,7 +96,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'useCorsProxy',
     title: 'Fetch through a relay (CORS proxy)',
     description:
-      'Required for syncing on web and mobile, where Goodreads cannot be fetched directly. Has no effect on the desktop app. Your feed URL is sent through the relay service configured below; its private key is stripped first.',
+      'Required for syncing on web and mobile, where Goodreads cannot be fetched directly. Has no effect on the desktop app. Your feed URL, including its key, is sent through the relay service configured below.',
     defaultValue: false,
   });
 
