@@ -46,16 +46,12 @@ apps (the desktop app is unaffected). To sync there, enable **Fetch
 through a relay (CORS proxy)** in the plugin settings. This routes the
 request through a public relay service that fetches the feed on your
 behalf and passes it back. The relay service is configurable; the
-default is [a purpose-built service for this plugin](https://remnote-goodreads-plugin.js84fwxnvs.workers.dev/).
+default is [a purpose-built service for this plugin](https://remnote-goodreads-plugin.js84fwxnvs.workers.dev/) that is open source inside [the same repository](https://github.com/michaelgriscom/remnote-goodreads-plugin/tree/main/cors-proxy).
 
 ## Data Privacy
 
-Whenever a sync is performed, a request is made to the RSS feed that you enter. Please be sure the URL you enter into the text box is correct.
-
-If you enable the relay option, your feed URL — including its key — is
-sent through the configured relay service. The main risk is that a relay
-operator could log and reuse the key, for example to request your feed
-repeatedly until Goodreads rate-limits or blocks it. To avoid relying on
-a third party, you can run your own relay: this repository includes a
+If you enable the relay option, your feed URL is
+sent through the configured relay service. This service could log the bookshelf you entered; the default relay for the plugin is open source and does not do this. You can instead run your own relay; services such as Cloudflare allow this for free.
+This repository includes a
 ready-to-deploy Cloudflare Worker that only proxies Goodreads feeds —
 see [cors-proxy/README.md](cors-proxy/README.md).
