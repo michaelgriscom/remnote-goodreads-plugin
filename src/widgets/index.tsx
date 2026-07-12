@@ -92,6 +92,22 @@ async function onActivate(plugin: ReactRNPlugin) {
     defaultValue: true,
   });
 
+  await plugin.settings.registerBooleanSetting({
+    id: 'useCorsProxy',
+    title: 'Fetch through a relay (CORS proxy)',
+    description:
+      'Required for syncing on web and mobile, where Goodreads cannot be fetched directly. Has no effect on the desktop app. Your feed URL is sent through the relay service configured below.',
+    defaultValue: false,
+  });
+
+  await plugin.settings.registerStringSetting({
+    id: 'corsProxyTemplate',
+    title: 'Relay (CORS proxy) URL',
+    description:
+      '{url} is replaced with the encoded feed URL.',
+    defaultValue: 'https://remnote-goodreads-plugin.js84fwxnvs.workers.dev/?url={url}',
+  });
+
   await plugin.settings.registerNumberSetting({
     id: SYNC_INTERVAL_SETTING_ID,
     title: 'Automatic sync interval (minutes)',

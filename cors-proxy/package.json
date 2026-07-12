@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "name": "goodreads-cors-proxy",
+  "description": "Goodreads-only CORS relay for the RemNote Goodreads plugin, deployable as a Cloudflare Worker",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

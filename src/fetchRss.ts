@@ -19,20 +19,45 @@ function validateGoodreadsUrl(feedUrl: string): URL {
     return url;
 }
 
-export async function fetchRss(feedUrl: string): Promise<Document> {
+/**
+ * Build the request URL from a proxy template. A `{url}` placeholder is
+ * replaced with the URL-encoded feed URL (e.g. allorigins:
+ * `https://api.allorigins.win/raw?url={url}`); a template without the
+ * placeholder gets the feed URL appended as-is (e.g. cors-anywhere:
+ * `https://cors-anywhere.com/`).
+ */
+export function buildProxyUrl(template: string, feedUrl: URL): string {
+    const trimmed = template.trim();
+    if (!trimmed) {
+      throw new Error('Proxy URL is enabled but empty; set it in the plugin settings');
+    }
+    const requestUrl = trimmed.includes('{url}')
+      ? trimmed.replace('{url}', encodeURIComponent(feedUrl.toString()))
+      : trimmed + feedUrl.toString();
+    try {
+      new URL(requestUrl);
+    } catch {
+      throw new Error(`Proxy setting does not produce a valid URL: "${requestUrl}"`);
+    }
+    return requestUrl;
+}
+
+export interface FetchRssOptions {
+    /** Proxy URL template; when set, the feed is fetched through it */
+    proxyTemplate?: string;
+}
+
+export async function fetchRss(feedUrl: string, options: FetchRssOptions = {}): Promise<Document> {
     const url = validateGoodreadsUrl(feedUrl);
-    const proxyUrl = `/goodreads${url.pathname}${url.search}`;
+    // Without a proxy, fetch the relative path handled by the webpack
+    // dev-server proxy (see webpack.config.js)
+    const requestUrl = options.proxyTemplate
+      ? buildProxyUrl(options.proxyTemplate, url)
+      : `/goodreads${url.pathname}${url.search}`;
 
     // Fetch and parse the RSS feed
-    doLog(`Fetching from ${proxyUrl}`);
-    const response = await fetch(proxyUrl,
-      {
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/xml',
-        }
-      }
-    );
+    doLog(`Fetching from ${requestUrl}`);
+    const response = await fetch(requestUrl, { mode: 'cors' });
     if (!response.ok) {
       throw new Error(`Failed to fetch Goodreads feed: HTTP ${response.status} ${response.statusText}`);
     }

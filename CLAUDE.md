@@ -37,7 +37,9 @@ The sync process follows this pipeline:
 
 ### Proxy Configuration
 
-In development mode, webpack proxies `/goodreads/*` requests to `https://www.goodreads.com` to work around CORS restrictions. See [webpack.config.js](webpack.config.js). `fetchRss` always fetches the relative `/goodreads/...` path, so syncing only works where that path is proxied (the webpack dev server).
+In development mode, webpack proxies `/goodreads/*` requests to `https://www.goodreads.com` to work around CORS restrictions. See [webpack.config.js](webpack.config.js). By default `fetchRss` fetches the relative `/goodreads/...` path, so syncing only works where that path is proxied (the webpack dev server).
+
+On web and mobile, direct fetches fail deterministically (Goodreads sends no CORS headers), so the `useCorsProxy` setting routes the fetch through a user-configurable relay there: `corsProxyTemplate` is a URL template where `{url}` is replaced with the encoded feed URL (default: allorigins `/raw`), or the feed URL is appended if there is no placeholder (cors-anywhere style). The desktop app always fetches directly — the relay never engages there (`isDesktopApp` in [src/sync.ts](src/sync.ts) switches on `plugin.app.getPlatform()`/`getOperatingSystem()`). Privacy tradeoff (relay operator could log and abuse the feed key) is documented in the README.
 
 ### Data Model
 
@@ -75,6 +77,10 @@ This plugin uses `@remnote/plugin-sdk` (0.0.46) to interact with RemNote:
 - `plugin.settings.registerStringSetting()` / `registerBooleanSetting()` / `registerNumberSetting()` - User-configurable settings
 - `plugin.event.addListener(AppEvents.SettingChanged, ...)` - React to setting changes
 - `plugin.app.registerCommand()` / `plugin.app.registerWidget()` / `plugin.app.toast()`
+
+## CORS Relay Worker
+
+[cors-proxy/](cors-proxy/) contains a self-hostable Cloudflare Worker relay ([cors-proxy/src/worker.ts](cors-proxy/src/worker.ts)) that only proxies Goodreads RSS URLs. It is intentionally isolated from the plugin: not part of the webpack build, the plugin zip, or release-please versioning (which is scoped to the root package). Its unit tests use plain `Request`/`Response` (with a `@vitest-environment node` pragma) so they run in the root `npm test` without extra dependencies; deployment uses wrangler from inside that directory.
 
 ## Key Files
 
