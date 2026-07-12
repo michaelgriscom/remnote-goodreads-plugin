@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildProxyUrl, fetchRss } from './fetchRss';
 
 const FEED_URL = 'https://www.goodreads.com/review/list_rss/12345?key=abc&shelf=read';
+// The same feed with the private key stripped, as fetchRss sends it
+const FEED_URL_NO_KEY = 'https://www.goodreads.com/review/list_rss/12345?shelf=read';
 
 function mockFetchResponse(body: string, init: { ok?: boolean; status?: number } = {}) {
   const { ok = true, status = 200 } = init;
@@ -28,14 +30,14 @@ describe('fetchRss', () => {
     );
   });
 
-  it('fetches through the /goodreads proxy path', async () => {
+  it('fetches through the /goodreads proxy path with the key stripped', async () => {
     const fetchMock = mockFetchResponse('<rss><channel></channel></rss>');
     vi.stubGlobal('fetch', fetchMock);
 
     await fetchRss(FEED_URL);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/goodreads/review/list_rss/12345?key=abc&shelf=read',
+      '/goodreads/review/list_rss/12345?shelf=read',
       expect.anything()
     );
   });
@@ -70,9 +72,20 @@ describe('fetchRss', () => {
     await fetchRss(FEED_URL, { proxyTemplate: 'https://foo-cors-proxy.test/raw?url={url}' });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `https://foo-cors-proxy.test/raw?url=${encodeURIComponent(FEED_URL)}`,
+      `https://foo-cors-proxy.test/raw?url=${encodeURIComponent(FEED_URL_NO_KEY)}`,
       expect.anything()
     );
+  });
+
+  it('strips the private key so it never reaches the relay', async () => {
+    const fetchMock = mockFetchResponse('<rss><channel></channel></rss>');
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchRss(FEED_URL, { proxyTemplate: 'https://foo-cors-proxy.test/raw?url={url}' });
+
+    const requestedUrl = fetchMock.mock.calls[0][0] as string;
+    expect(requestedUrl).not.toContain('key');
+    expect(requestedUrl).not.toContain('abc');
   });
 
   it('still validates the feed URL when a proxy is used', async () => {
