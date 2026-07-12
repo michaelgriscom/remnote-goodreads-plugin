@@ -1,7 +1,6 @@
 /**
  * A minimal CORS relay for the RemNote Goodreads plugin, deployable as
- * a Cloudflare Worker. It only proxies Goodreads RSS feed URLs, so it
- * cannot be abused as a general-purpose open proxy.
+ * a Cloudflare Worker.
  *
  * Usage: GET https://<worker-host>/?url=<encoded Goodreads feed URL>
  */
