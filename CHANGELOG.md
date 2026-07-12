@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/michaelgriscom/remnote-goodreads-plugin/compare/v0.3.0...v0.4.0) (2026-07-12)
+
+
+### Features
+
+* add CORS relay for web/mobile support ([#26](https://github.com/michaelgriscom/remnote-goodreads-plugin/issues/26)) ([e71fcdc](https://github.com/michaelgriscom/remnote-goodreads-plugin/commit/e71fcdc20fe9881b3be8561bb32dd88bdfcc7f29))
+
 ## [0.3.0](https://github.com/michaelgriscom/remnote-goodreads-plugin/compare/v0.2.0...v0.3.0) (2026-07-10)
 
 
