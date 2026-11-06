@@ -2,6 +2,13 @@
 
 Sync a Goodreads shelf to RemNote
 
+> [!WARNING]
+> **This plugin no longer works and is no longer maintained.** Goodreads
+> [discontinued RSS feeds in October 2026](https://www.goodreads.com/blog/show/20-more-rss-feeds),
+> and the plugin's sync depended on them. Books already imported into
+> RemNote are unaffected. To get your data out of Goodreads, use its
+> [import and export page](https://www.goodreads.com/review/import).
+
 ## Setup
 
 ### Get Goodreads RSS URL

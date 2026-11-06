@@ -1,5 +1,11 @@
 # Goodreads CORS relay
 
+> [!WARNING]
+> **This relay is obsolete.** Goodreads
+> [discontinued RSS feeds in October 2026](https://www.goodreads.com/blog/show/20-more-rss-feeds),
+> so there is nothing left for it to proxy. If you deployed it, you can
+> remove it with `npx wrangler delete` from this directory.
+
 A minimal [Cloudflare Worker](https://developers.cloudflare.com/workers/)
 that fetches Goodreads RSS feeds server-side and returns them with CORS
 headers, so the RemNote Goodreads plugin can sync on web and mobile
