@@ -9,17 +9,40 @@ import {
 import '../style.css';
 import '../index.css';
 import { doLog } from '../logging';
-import { BOOK_POWERUP_CODE, BOOK_POWERUP_SLOTS, runSyncWithStatus } from '../sync';
+import {
+  BOOK_POWERUP_CODE,
+  BOOK_POWERUP_SLOTS,
+  SYNC_REQUEST_MESSAGE,
+  runSyncWithStatus,
+} from '../sync';
 
 const DEFAULT_SYNC_INTERVAL_MINUTES = 30;
 const SYNC_INTERVAL_SETTING_ID = 'syncIntervalMinutes';
 
 let syncIntervalId: ReturnType<typeof setInterval> | null = null;
 
-async function fetchGoodreads(plugin: ReactRNPlugin) {
+interface FetchOptions {
+  /**
+   * Background (timer) syncs never toast failures or parse warnings:
+   * those would repeat every interval. The sidebar widget shows them.
+   */
+  background?: boolean;
+}
+
+async function fetchGoodreads(plugin: ReactRNPlugin, { background = false }: FetchOptions = {}) {
+  if (background) {
+    const feedUrl = await plugin.settings.getSetting<string>('feedUrl');
+    if (!feedUrl || !feedUrl.trim()) {
+      doLog('Skipping automatic sync: no feed URL configured');
+      return;
+    }
+  }
+
   const result = await runSyncWithStatus(plugin);
   if (!result) {
-    await plugin.app.toast('Error syncing Goodreads, check the console for additional details.');
+    if (!background) {
+      await plugin.app.toast('Error syncing Goodreads, check the console for additional details.');
+    }
     return;
   }
   if (result.imported > 0) {
@@ -27,9 +50,24 @@ async function fetchGoodreads(plugin: ReactRNPlugin) {
       `Goodreads sync complete. Found ${result.imported} new book(s) (${result.existing} existing)`
     );
   }
-  if (result.skipped > 0) {
+  if (result.skipped > 0 && !background) {
     await plugin.app.toast(`Goodreads sync: ${result.skipped} feed item(s) could not be parsed.`);
   }
+}
+
+/** Handles Sync Now requests broadcast by the sidebar widget */
+function onMessageBroadcast(plugin: ReactRNPlugin) {
+  return (event: unknown) => {
+    // The SDK delivers broadcasts wrapped as { message }
+    const message =
+      event && typeof event === 'object' && 'message' in event
+        ? (event as { message: unknown }).message
+        : event;
+    if (message === SYNC_REQUEST_MESSAGE) {
+      doLog('Sync requested from sidebar widget');
+      fetchGoodreads(plugin);
+    }
+  };
 }
 
 function startPeriodicSync(plugin: ReactRNPlugin, intervalMinutes: number) {
@@ -44,7 +82,7 @@ function startPeriodicSync(plugin: ReactRNPlugin, intervalMinutes: number) {
   doLog(`Starting automatic sync every ${intervalMinutes} minute(s)`);
   syncIntervalId = setInterval(() => {
     doLog('Running automatic sync');
-    fetchGoodreads(plugin);
+    fetchGoodreads(plugin, { background: true });
   }, intervalMs);
 }
 
@@ -137,10 +175,13 @@ async function onActivate(plugin: ReactRNPlugin) {
     const newInterval: number = await plugin.settings.getSetting(SYNC_INTERVAL_SETTING_ID);
     startPeriodicSync(plugin, newInterval);
   });
+
+  plugin.event.addListener(AppEvents.MessageBroadcast, undefined, onMessageBroadcast(plugin));
 }
 
 async function onDeactivate(plugin: ReactRNPlugin) {
   plugin.event.removeListener(AppEvents.SettingChanged, SYNC_INTERVAL_SETTING_ID);
+  plugin.event.removeListener(AppEvents.MessageBroadcast, undefined);
   stopPeriodicSync();
 }
 

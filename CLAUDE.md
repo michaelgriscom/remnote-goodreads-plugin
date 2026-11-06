@@ -24,7 +24,7 @@ The sync process follows this pipeline:
 3. **cleanupBookTitle** ([src/cleanupBookTitle.ts](src/cleanupBookTitle.ts)) - Optionally simplifies titles (removes subtitles, series info, editions)
 4. **upsertBookRem** ([src/sync.ts](src/sync.ts)) - Creates or updates Rem documents in RemNote
 
-`performSync` in [src/sync.ts](src/sync.ts) orchestrates the pipeline. `runSyncWithStatus` wraps it with the session-storage status bookkeeping (`STORAGE_KEYS`) that the sidebar widget renders from; the command palette entry, the periodic sync timer, and the widget's Sync Now button all go through it.
+`performSync` in [src/sync.ts](src/sync.ts) orchestrates the pipeline. `runSyncWithStatus` wraps it with the session-storage status bookkeeping (`STORAGE_KEYS`) that the sidebar widget renders from, and allows only one sync at a time (a call during a sync joins it, since overlapping syncs can create duplicate rems). The command palette entry, the periodic sync timer, and the widget's Sync Now button all go through it. Widgets run in separate frames with their own module state, so Sync Now broadcasts `SYNC_REQUEST_MESSAGE` and the index plugin runs the sync, keeping the guard in one place. Periodic syncs skip when no feed URL is set and never toast errors or parse warnings (they would repeat every interval); the widget shows them instead.
 
 ### Entry Point
 

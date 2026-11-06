@@ -22,6 +22,14 @@ export const STORAGE_KEYS = {
   AUTHOR_REM_MAP: 'goodreads-sync_author-rem-map',
 };
 
+/**
+ * Broadcast by the sidebar widget to ask the index plugin to sync.
+ * Widgets run in their own frames with their own module state, so
+ * routing every sync through the index plugin keeps the in-progress
+ * guard in runSyncWithStatus in a single place.
+ */
+export const SYNC_REQUEST_MESSAGE = 'goodreads-sync_sync-now';
+
 export interface SyncResult {
   imported: number;
   existing: number;
@@ -292,12 +300,29 @@ function formatSyncResult(result: SyncResult): string {
   return message;
 }
 
+let activeSync: Promise<SyncResult | undefined> | null = null;
+
 /**
  * Runs a sync while reflecting its progress and outcome in the
  * session-storage status keys the sidebar widget renders from.
  * Returns the result, or undefined if the sync failed.
+ *
+ * Only one sync runs at a time: a call made while one is in progress
+ * joins it rather than starting another. Overlapping syncs could both
+ * miss a new book or author and each create a rem for it.
  */
-export async function runSyncWithStatus(plugin: RNPlugin): Promise<SyncResult | undefined> {
+export function runSyncWithStatus(plugin: RNPlugin): Promise<SyncResult | undefined> {
+  if (activeSync) {
+    doLog('Sync already in progress; waiting for it instead of starting another');
+    return activeSync;
+  }
+  activeSync = syncWithStatus(plugin).finally(() => {
+    activeSync = null;
+  });
+  return activeSync;
+}
+
+async function syncWithStatus(plugin: RNPlugin): Promise<SyncResult | undefined> {
   try {
     await plugin.storage.setSession(STORAGE_KEYS.SYNC_STATUS, 'syncing');
     await plugin.storage.setSession(STORAGE_KEYS.SYNC_RESULT, '');

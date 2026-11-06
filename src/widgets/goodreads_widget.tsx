@@ -7,7 +7,7 @@ import {
 } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../index.css';
-import { STORAGE_KEYS, runSyncWithStatus } from '../sync';
+import { STORAGE_KEYS, SYNC_REQUEST_MESSAGE } from '../sync';
 
 function formatLastSync(isoString: string | null): string {
   if (!isoString) return 'Never';
@@ -27,8 +27,10 @@ const GoodreadsWidget = () => {
   const [syncStatus] = useSessionStorageState<string>(STORAGE_KEYS.SYNC_STATUS, 'idle');
   const [syncResult] = useSessionStorageState<string>(STORAGE_KEYS.SYNC_RESULT, '');
 
+  // The index plugin runs the sync, so it shares the single
+  // in-progress guard with the command and the periodic timer
   const handleManualSync = async () => {
-    await runSyncWithStatus(plugin);
+    await plugin.messaging.broadcast(SYNC_REQUEST_MESSAGE);
   };
 
   return (
